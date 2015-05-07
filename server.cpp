@@ -19,11 +19,12 @@ struct context {
 };
 
 struct connection {
-  struct ibv_qp *qp;
+  struct ibv_qp *qp; // queue pair
 
-  struct ibv_mr *recv_mr;
-  struct ibv_mr *send_mr;
+  struct ibv_mr *recv_mr; // receive buffer
+  struct ibv_mr *send_mr; // send buffer
 
+  // memory regions
   char *recv_region;
   char *send_region;
 };
@@ -48,28 +49,35 @@ int main(int argc, char **argv)
 {
   struct sockaddr_in6 addr;
   struct rdma_cm_event *event = NULL;
-  struct rdma_cm_id *listener = NULL;
-  struct rdma_event_channel *ec = NULL;
+  struct rdma_cm_id *listener = NULL; // ptr to rdmacm ID
+  struct rdma_event_channel *ec = NULL; // pointer to rdmacm event channel
   uint16_t port = 0;
 
+  // set addr.sin_port to zero, let rdmacm pick an avail port
   memset(&addr, 0, sizeof(addr));
   addr.sin6_family = AF_INET6;
 
   TEST_Z(ec = rdma_create_event_channel());
+
+  // create a connectionless, unreliable queue pair
   TEST_NZ(rdma_create_id(ec, &listener, NULL, RDMA_PS_TCP));
   TEST_NZ(rdma_bind_addr(listener, (struct sockaddr *)&addr));
-  TEST_NZ(rdma_listen(listener, 10)); /* backlog=10 is arbitrary */
+  TEST_NZ(rdma_listen(listener, 10)); // backlog=10 is arbitrary
 
   port = ntohs(rdma_get_src_port(listener));
 
   printf("listening on port %d.\n", port);
 
+  // get event from rdmacm
   while (rdma_get_cm_event(ec, &event) == 0) {
     struct rdma_cm_event event_copy;
 
     memcpy(&event_copy, event, sizeof(*event));
+
+    // acknowledge the event
     rdma_ack_cm_event(event);
 
+    // process the event
     if (on_event(&event_copy))
       break;
   }
@@ -88,6 +96,7 @@ void die(const char *reason)
 
 void build_context(struct ibv_context *verbs)
 {
+  // is the static context structure setup already?
   if (s_ctx) {
     if (s_ctx->ctx != verbs)
       die("cannot handle events in more than one context.");
@@ -95,28 +104,37 @@ void build_context(struct ibv_context *verbs)
     return;
   }
 
+  // it's not, set it up
   s_ctx = (struct context *)malloc(sizeof(struct context));
 
   s_ctx->ctx = verbs;
 
-  TEST_Z(s_ctx->pd = ibv_alloc_pd(s_ctx->ctx));
-  TEST_Z(s_ctx->comp_channel = ibv_create_comp_channel(s_ctx->ctx));
+  TEST_Z(s_ctx->pd = ibv_alloc_pd(s_ctx->ctx)); // create protection domain
+  TEST_Z(s_ctx->comp_channel = ibv_create_comp_channel(s_ctx->ctx)); // completion channel
   TEST_Z(s_ctx->cq = ibv_create_cq(s_ctx->ctx, 10, NULL, s_ctx->comp_channel, 0)); /* cqe=10 is arbitrary */
-  TEST_NZ(ibv_req_notify_cq(s_ctx->cq, 0));
+  TEST_NZ(ibv_req_notify_cq(s_ctx->cq, 0)); // setup completion queue
 
+  // start thread to pull connections from queue
   TEST_NZ(pthread_create(&s_ctx->cq_poller_thread, NULL, poll_cq, NULL));
 }
 
+// init the queue pair attributes
 void build_qp_attr(struct ibv_qp_init_attr *qp_attr)
 {
   memset(qp_attr, 0, sizeof(*qp_attr));
 
+  // send and receive queue pairs
   qp_attr->send_cq = s_ctx->cq;
   qp_attr->recv_cq = s_ctx->cq;
+
+  // reliable, connection-oriented queue pair
   qp_attr->qp_type = IBV_QPT_RC;
 
+  // negotiate min capabilities with verbs driver
+  // 10 pending receives/sends
   qp_attr->cap.max_send_wr = 10;
   qp_attr->cap.max_recv_wr = 10;
+  // 1 scatter/gather element
   qp_attr->cap.max_send_sge = 1;
   qp_attr->cap.max_recv_sge = 1;
 }
@@ -138,12 +156,14 @@ void * poll_cq(void *ctx)
   return NULL;
 }
 
+// receives have to be posted before sends
 void post_receives(struct connection *conn)
 {
+  // build receive work request struct
   struct ibv_recv_wr wr, *bad_wr = NULL;
   struct ibv_sge sge;
 
-  wr.wr_id = (uintptr_t)conn;
+  wr.wr_id = (uintptr_t)conn; // connection context ptr
   wr.next = NULL;
   wr.sg_list = &sge;
   wr.num_sge = 1;
@@ -152,14 +172,17 @@ void post_receives(struct connection *conn)
   sge.length = BUFFER_SIZE;
   sge.lkey = conn->recv_mr->lkey;
 
+  // post the wr to the receive queue
   TEST_NZ(ibv_post_recv(conn->qp, &wr, &bad_wr));
 }
 
 void register_memory(struct connection *conn)
 {
+  // allocate a buffer for sends and another for receives
   conn->send_region = malloc(BUFFER_SIZE);
   conn->recv_region = malloc(BUFFER_SIZE);
 
+  // register the buffers with verbs
   TEST_Z(conn->send_mr = ibv_reg_mr(
     s_ctx->pd,
     conn->send_region,
@@ -173,6 +196,7 @@ void register_memory(struct connection *conn)
     IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE));
 }
 
+// handle completions pulled from completion queue
 void on_completion(struct ibv_wc *wc)
 {
   if (wc->status != IBV_WC_SUCCESS)
@@ -188,6 +212,7 @@ void on_completion(struct ibv_wc *wc)
   }
 }
 
+// handle a connection request
 int on_connect_request(struct rdma_cm_id *id)
 {
   struct ibv_qp_init_attr qp_attr;
@@ -208,11 +233,12 @@ int on_connect_request(struct rdma_cm_id *id)
   post_receives(conn);
 
   memset(&cm_params, 0, sizeof(cm_params));
-  TEST_NZ(rdma_accept(id, &cm_params));
+  TEST_NZ(rdma_accept(id, &cm_params)); // finally, accept connection request
 
   return 0;
 }
 
+// a connection has been established, post a send work request
 int on_connection(void *context)
 {
   struct connection *conn = (struct connection *)context;
@@ -225,10 +251,12 @@ int on_connection(void *context)
 
   memset(&wr, 0, sizeof(wr));
 
+  // IBV_WR_SEND specified a send req that must match a corresponding
+  // recv req on the peer
   wr.opcode = IBV_WR_SEND;
   wr.sg_list = &sge;
   wr.num_sge = 1;
-  wr.send_flags = IBV_SEND_SIGNALED;
+  wr.send_flags = IBV_SEND_SIGNALED; // we want completion notification for this send req
 
   sge.addr = (uintptr_t)conn->send_region;
   sge.length = BUFFER_SIZE;
@@ -239,6 +267,7 @@ int on_connection(void *context)
   return 0;
 }
 
+// handle a disconnect, clean up
 int on_disconnect(struct rdma_cm_id *id)
 {
   struct connection *conn = (struct connection *)id->context;
