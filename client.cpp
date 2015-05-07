@@ -64,6 +64,8 @@ int main(int argc, char **argv)
 
   TEST_Z(ec = rdma_create_event_channel());
   TEST_NZ(rdma_create_id(ec, &conn, NULL, RDMA_PS_TCP));
+
+  // resolve the server address
   TEST_NZ(rdma_resolve_addr(conn, NULL, addr->ai_addr, TIMEOUT_IN_MS));
 
   freeaddrinfo(addr);
@@ -176,6 +178,8 @@ void register_memory(struct connection *conn)
     IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE));
 }
 
+// address has been resolved, resolve a route to the server.
+// create a connection struct
 int on_addr_resolved(struct rdma_cm_id *id)
 {
   struct ibv_qp_init_attr qp_attr;
@@ -216,10 +220,12 @@ void on_completion(struct ibv_wc *wc)
   else
     die("on_completion: completion isn't a send or a receive.");
 
+  // disconnect after 2 completions (one send, one receive)
   if (++conn->num_completions == 2)
     rdma_disconnect(conn->id);
 }
 
+// connection has been established
 int on_connection(void *context)
 {
   struct connection *conn = (struct connection *)context;
@@ -268,6 +274,9 @@ int on_disconnect(struct rdma_cm_id *id)
   return 1; /* exit event loop */
 }
 
+// wait for RDMA_CM_EVENT_ADDR_RESOLVED,
+// then for RDMA_CM_EVENT_ROUTE_RESOLVED,
+// then for RDMA_CM_EVENT_ESTABLISHED
 int on_event(struct rdma_cm_event *event)
 {
   int r = 0;
@@ -286,6 +295,7 @@ int on_event(struct rdma_cm_event *event)
   return r;
 }
 
+// connect to the server
 int on_route_resolved(struct rdma_cm_id *id)
 {
   struct rdma_conn_param cm_params;
