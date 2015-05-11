@@ -5,13 +5,13 @@ BIN:=server client
 
 all: $(BIN)
 
-server: common.o
+server: common.o server.cpp
 	$(CXX) $(CXXFLAGS) server.cpp common.o -g -o server $(LDFLAGS)
 
-client: common.o
+client: common.o client.cpp
 	$(CXX) $(CXXFLAGS) client.cpp common.o -g -o client $(LDFLAGS)
 
-common.o:
+common.o: common.cpp
 	$(CXX) $(CXXFLAGS) common.cpp -g -c $(LDFLAGS)
 
 .PHONY: clean
