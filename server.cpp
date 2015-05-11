@@ -13,6 +13,7 @@ int main(int argc, char **argv)
   struct rdma_cm_id *listener = NULL;
   struct rdma_event_channel *ec = NULL;
   uint16_t port = 0;
+  IS_SERVER = true;
 
   if (argc != 2)
     usage(argv[0]);

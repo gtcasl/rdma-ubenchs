@@ -1,6 +1,7 @@
 #include "common.h"
 
 char *DATA_BUFFER = NULL;
+bool IS_SERVER = false;
 
 struct message {
   enum {
@@ -270,7 +271,9 @@ void on_completion(struct ibv_wc *wc)
   else if (conn->send_state == connection::SS_DONE_SENT &&
             conn->recv_state == connection::RS_DONE_RECV) {
     //printf("remote buffer: %s\n", get_peer_message_region(conn));
-    print_buffer(conn);
+    if (IS_SERVER)
+      print_buffer(conn);
+
     rdma_disconnect(conn->id);
   }
 }

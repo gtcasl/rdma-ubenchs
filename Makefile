@@ -11,7 +11,7 @@ server: common.o server.cpp
 client: common.o client.cpp
 	$(CXX) $(CXXFLAGS) client.cpp common.o -g -o client $(LDFLAGS)
 
-common.o: common.cpp
+common.o: common.cpp common.h
 	$(CXX) $(CXXFLAGS) common.cpp -g -c $(LDFLAGS)
 
 .PHONY: clean
