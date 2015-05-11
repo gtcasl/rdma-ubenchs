@@ -36,6 +36,8 @@ int main(int argc, char **argv)
 
   printf("listening on port %d.\n", port);
 
+  create_buffer();
+
   while (rdma_get_cm_event(ec, &event) == 0) {
     struct rdma_cm_event event_copy;
 
@@ -59,7 +61,8 @@ int on_connect_request(struct rdma_cm_id *id)
   printf("received connection request.\n");
   build_connection(id);
   build_params(&cm_params);
-  sprintf(get_local_message_region(id->context), "(from server) message from passive/server side with pid %d", getpid());
+  //sprintf(get_local_message_region(id->context),
+  //        "(from server) message from passive/server side with pid %d", getpid());
   TEST_NZ(rdma_accept(id, &cm_params));
 
   return 0;

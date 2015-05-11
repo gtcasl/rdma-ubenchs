@@ -34,6 +34,8 @@ int main(int argc, char **argv)
 
   freeaddrinfo(addr);
 
+  create_buffer();
+
   while (rdma_get_cm_event(ec, &event) == 0) {
     struct rdma_cm_event event_copy;
 
@@ -54,8 +56,11 @@ int on_addr_resolved(struct rdma_cm_id *id)
   printf("address resolved.\n");
 
   build_connection(id);
-  sprintf(get_local_message_region(id->context),
-          "(from client) message from active/client side with pid %d", getpid());
+  //sprintf(get_local_message_region(id->context),
+  //        "(from client) message from active/client side with pid %d", getpid());
+  char *region = get_local_message_region(id->context);
+  memcpy(region, DATA_BUFFER, RDMA_BUFFER_SIZE);
+
   TEST_NZ(rdma_resolve_route(id, TIMEOUT_IN_MS));
 
   return 0;
