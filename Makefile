@@ -1,19 +1,16 @@
 CXX:=g++
-CXXFLAGS:=-Wall -Werror
+CXXFLAGS:=-Wall -Werror -std=c++11
 LDFLAGS:=-lrdmacm -libverbs -lpthread
-BIN:=server client
+BIN:=server3 client3
 
 all: $(BIN)
 
-server: common.o server.cpp
-	$(CXX) $(CXXFLAGS) server.cpp common.o -g -o server $(LDFLAGS)
+server3: server3.cpp
+	$(CXX) $(CXXFLAGS) server3.cpp -g -o server3 $(LDFLAGS)
 
-client: common.o client.cpp
-	$(CXX) $(CXXFLAGS) client.cpp common.o -g -o client $(LDFLAGS)
-
-common.o: common.cpp common.h
-	$(CXX) $(CXXFLAGS) common.cpp -g -c $(LDFLAGS)
+client3: client3.cpp
+	$(CXX) $(CXXFLAGS) client3.cpp -g -o client3 $(LDFLAGS)
 
 .PHONY: clean
 clean:
-	rm -f server client *.o
+	rm -f server3 client3
