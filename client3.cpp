@@ -7,6 +7,7 @@
 #include <stdlib.h>
 
 class Client {
+protected:
   rdma_event_channel *eventChannel;
   rdma_cm_id *clientId;
   int port;
@@ -141,7 +142,7 @@ public:
     rdma_destroy_event_channel(eventChannel);
   }
 
-  void Start() {
+  virtual void Start() {
     assert(eventChannel != NULL);
     assert(clientId != NULL);
 
@@ -151,6 +152,17 @@ public:
     WaitForCompletion();
   }
 
+};
+
+class ClientRDMA : Client {
+
+  void Start() override {
+    assert(eventChannel != NULL);
+    assert(clientId != NULL);
+
+    HandleAddrResolved();
+    HandleRouteResolved();
+  }
 };
 
 int main() {

@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "common3.h"
+
 class Server {
   rdma_event_channel *eventChannel;
   rdma_cm_id *serverId;
@@ -59,23 +61,12 @@ class Server {
   }
 
   void SendWorkRequest() {
-    assert(event != NULL);
+    assert(data != NULL);
     assert(memReg != NULL);
     assert(clientId != NULL);
 
-    ibv_sge sge = {};
-    sge.addr = (uint64_t) data;
-    sge.length = strlen(data) + 1;
-    sge.lkey = memReg->lkey;
-
-    ibv_send_wr sendWr = {};
-    sendWr.sg_list = &sge;
-    sendWr.num_sge = 1;
-    sendWr.opcode = IBV_WR_SEND;
-    sendWr.send_flags = IBV_SEND_SIGNALED;
-    sendWr.next = NULL;
-
-    assert(ibv_post_send(clientId->qp, &sendWr, NULL) == 0);
+    PostWrSend send((uint64_t) data, strlen(data) + 1, memReg->lkey, clientId->qp);
+    send.Execute();
   }
 
   void WaitForCompletion() {

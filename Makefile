@@ -5,10 +5,10 @@ BIN:=server3 client3
 
 all: $(BIN)
 
-server3: server3.cpp
+server3: server3.cpp common.h
 	$(CXX) $(CXXFLAGS) server3.cpp -g -o server3 $(LDFLAGS)
 
-client3: client3.cpp
+client3: client3.cpp common.h
 	$(CXX) $(CXXFLAGS) client3.cpp -g -o client3 $(LDFLAGS)
 
 .PHONY: clean
