@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "common3.h"
+
 class Client {
 protected:
   rdma_event_channel *eventChannel;
@@ -42,8 +44,7 @@ protected:
     rdma_ack_cm_event(event);
   }
 
-  void Connect() {
-    assert(event != NULL);
+  void Setup() {
     assert(clientId != NULL);
 
     assert((protDomain = ibv_alloc_pd(clientId->verbs)) != NULL);
@@ -53,23 +54,20 @@ protected:
                                 IBV_ACCESS_REMOTE_READ)) != NULL);
 
     assert((compQueue = ibv_create_cq(clientId->verbs, 32, 0, 0, 0)) != NULL);
-
     qpAttr.send_cq = qpAttr.recv_cq = compQueue;
 
     // queue pair
     assert(rdma_create_qp(clientId, protDomain, &qpAttr) == 0);
+  }
 
-    ibv_sge sge = {};
-    sge.addr = (uint64_t) recvBuf;
-    sge.length = 256;
-    sge.lkey = memReg->lkey;
+  void ReceiveWR() {
+    assert(recvBuf != NULL);
+    assert(memReg != NULL);
+    assert(clientId->qp != NULL);
 
-    ibv_recv_wr recvWr = {};
-    recvWr.sg_list = &sge;
-    recvWr.num_sge = 1;
-    recvWr.next = NULL;
+    PostWrRecv recvWr((uint64_t) recvBuf, 256, memReg->lkey, clientId->qp);
+    recvWr.Execute();
 
-    assert(ibv_post_recv(clientId->qp, &recvWr, NULL) == 0);
     assert(rdma_connect(clientId, &connParams) == 0);
     assert(rdma_get_cm_event(eventChannel, &event) == 0);
     assert(event->event == RDMA_CM_EVENT_ESTABLISHED);
@@ -148,7 +146,8 @@ public:
 
     HandleAddrResolved();
     HandleRouteResolved();
-    Connect();
+    Setup();
+    ReceiveWR();
     WaitForCompletion();
   }
 
@@ -156,12 +155,24 @@ public:
 
 class ClientRDMA : Client {
 
+protected:
+  void SendMRInfo() {
+    assert(memReg != NULL);
+    assert(clientId->qp != NULL);
+
+    PostWrSend sendWr((uint64_t) memReg, sizeof(*memReg), memReg->lkey, clientId->qp);
+    sendWr.Execute();
+  }
+
+public:
   void Start() override {
     assert(eventChannel != NULL);
     assert(clientId != NULL);
 
     HandleAddrResolved();
     HandleRouteResolved();
+    Setup();
+    SendMRInfo();
   }
 };
 

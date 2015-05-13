@@ -134,7 +134,7 @@ public:
     rdma_destroy_event_channel(eventChannel);
   }
 
-  void Start() {
+  virtual void Start() {
     assert(eventChannel != NULL);
     assert(serverId != NULL);
 
@@ -143,6 +143,11 @@ public:
     SendWorkRequest();
     WaitForCompletion();
   }
+
+};
+
+class ServerRDMA : Server {
+
 
 };
 

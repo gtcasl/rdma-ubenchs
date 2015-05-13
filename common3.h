@@ -39,4 +39,32 @@ public:
   }
 };
 
+class PostWrRecv {
+
+  uint64_t dataAddr;
+  uint32_t dataLen;
+  uint32_t localKey; // key of local memory region
+  ibv_qp *queuePair;
+
+public:
+  PostWrRecv(uint64_t addr, uint32_t len, uint32_t lkey, ibv_qp *qp)
+    : dataAddr(addr), dataLen(len), localKey(lkey), queuePair(qp) {
+
+  }
+
+  void Execute() {
+    ibv_sge sge = {};
+    sge.addr = dataAddr;
+    sge.length = dataLen;
+    sge.lkey = localKey;
+
+    ibv_recv_wr recvWr = {};
+    recvWr.sg_list = &sge;
+    recvWr.num_sge = 1;
+    recvWr.next = NULL;
+
+    test_nz(ibv_post_recv(queuePair, &recvWr, NULL));
+  }
+};
+
 #endif
