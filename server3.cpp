@@ -3,7 +3,6 @@
 #include <arpa/inet.h>
 #include <cassert>
 #include <string.h>
-#include <stdio.h>
 #include <stdlib.h>
 
 #include "common3.h"
@@ -84,12 +83,10 @@ protected:
     while ((ret = ibv_poll_cq(compQueue, 1, &workComp)) == 0) {}
 
     if (ret < 0)
-      printf("ibv_poll_cq returned %d\n", ret);
+      D(std::cerr << "ibv_poll_cq returned " << ret << "\n");
 
-    if (workComp.status == IBV_WC_SUCCESS)
-      printf("IBV_WC_SUCCESS\n");
-    else
-      printf("not IBV_WC_SUCCESS\n");
+    if (workComp.status != IBV_WC_SUCCESS)
+      D(std::cerr << "not IBV_WC_SUCCESS" << ret << "\n");
   }
 
 public:
@@ -189,6 +186,6 @@ public:
 };
 
 int main() {
-  Server server;
+  ServerRDMA server;
   server.Start();
 }
