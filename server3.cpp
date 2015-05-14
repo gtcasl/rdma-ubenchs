@@ -167,25 +167,6 @@ public:
 class ServerRDMA : Server {
 protected:
 
-  void RecvMRInfo() {
-    int ret = 0;
-
-    ibv_wc workComp = {};
-
-    while ((ret = ibv_poll_cq(compQueue, 1, &workComp)) == 0) {}
-
-    if (ret < 0)
-      printf("ibv_poll_cq returned %d\n", ret);
-
-    if (workComp.status == IBV_WC_SUCCESS)
-      printf("IBV_WC_SUCCESS\n");
-    else
-      printf("not IBV_WC_SUCCESS\n");
-
-    D(std::cerr << "client addr=" << std::hex << info->addr);
-    D(std::cerr << "\nclient rkey=" << std::dec << info->rKey);
-  }
-
 public:
   void Start() override {
     assert(eventChannel != NULL);
@@ -193,7 +174,10 @@ public:
 
     HandleConnectRequest();
     HandleConnectionEstablished();
-    RecvMRInfo();
+    WaitForCompletion();
+
+    D(std::cerr << "client addr=" << std::hex << info->addr);
+    D(std::cerr << "\nclient rkey=" << std::dec << info->rKey);
   }
 };
 
