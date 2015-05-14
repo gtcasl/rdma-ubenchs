@@ -24,7 +24,7 @@ protected:
   ibv_qp_init_attr qpAttr;
 
   char *data;
-  RemoteRegInfo *info; // TODO: move this to ServerRDMA
+
 
   void HandleConnectRequest() {
     assert(eventChannel != NULL);
@@ -41,11 +41,7 @@ protected:
 
     // create a prot domain for the client rdma device
     assert((protDomain = ibv_alloc_pd(clientId->verbs)) != NULL);
-    //assert((memReg = ibv_reg_mr(protDomain, (void *) data, 256,
-    //                            IBV_ACCESS_REMOTE_WRITE |
-    //                            IBV_ACCESS_LOCAL_WRITE |
-    //                            IBV_ACCESS_REMOTE_READ)) != NULL);
-    assert((memReg = ibv_reg_mr(protDomain, (void *) info, sizeof(RemoteRegInfo),
+    assert((memReg = ibv_reg_mr(protDomain, (void *) data, 256,
                                 IBV_ACCESS_REMOTE_WRITE |
                                 IBV_ACCESS_LOCAL_WRITE |
                                 IBV_ACCESS_REMOTE_READ)) != NULL);
@@ -56,11 +52,6 @@ protected:
 
     // queue pair
     assert(rdma_create_qp(clientId, protDomain, &qpAttr) == 0);
-
-    // TODO: this should not happen if regular server
-    PostWrRecv recvWr((uint64_t) info, 256, memReg->lkey, clientId->qp);
-    recvWr.Execute();
-
     assert(rdma_accept(clientId, &connParams) == 0);
 
     rdma_ack_cm_event(event);
@@ -127,8 +118,6 @@ public:
 
     assert(rdma_bind_addr(serverId, (sockaddr *) &sin) == 0);
     assert(rdma_listen(serverId, 6) == 0);
-
-    info = new RemoteRegInfo();// TODO remove from here
   }
 
   virtual ~Server() {
@@ -149,7 +138,7 @@ public:
 
     rdma_destroy_id(serverId);
     rdma_destroy_event_channel(eventChannel);
-    delete info;// TODO remove from here
+
   }
 
   virtual void Start() {
@@ -165,14 +154,32 @@ public:
 };
 
 class ServerRDMA : Server {
-protected:
+  RemoteRegInfo *info;
 
 public:
+
+  ServerRDMA() {
+    info = new RemoteRegInfo();
+  }
+
+  ~ServerRDMA() {
+    delete info;
+  }
+
   void Start() override {
     assert(eventChannel != NULL);
     assert(serverId != NULL);
 
     HandleConnectRequest();
+
+    assert((memReg = ibv_reg_mr(protDomain, (void *) info, sizeof(RemoteRegInfo),
+                                IBV_ACCESS_REMOTE_WRITE |
+                                IBV_ACCESS_LOCAL_WRITE |
+                                IBV_ACCESS_REMOTE_READ)) != NULL);
+
+    PostWrRecv recvWr((uint64_t) info, 256, memReg->lkey, clientId->qp);
+    recvWr.Execute();
+
     HandleConnectionEstablished();
     WaitForCompletion();
 
@@ -182,6 +189,6 @@ public:
 };
 
 int main() {
-  ServerRDMA server;
+  Server server;
   server.Start();
 }

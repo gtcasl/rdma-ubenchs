@@ -216,6 +216,6 @@ public:
 };
 
 int main() {
-  ClientRDMA client;
+  Client client;
   client.Start();
 }
