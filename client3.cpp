@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <getopt.h>
+#include <unistd.h>
 
 #include "common3.h"
 
@@ -96,8 +97,6 @@ protected:
       printf("IBV_WC_SUCCESS\n");
     else
       printf("not IBV_WC_SUCCESS\n");
-
-    printf("data received: %s\n", recvBuf);
   }
 
 public:
@@ -155,19 +154,20 @@ public:
     Setup();
     ReceiveWR();
     WaitForCompletion();
+    printf("data received: %s\n", recvBuf);
   }
 
 };
 
 class ClientRDMA : Client {
-
 protected:
+  ibv_mr *MRInfo;
+  RemoteRegInfo *info;
+
   void SendMRInfo() {
     assert(memReg != NULL);
     assert(clientId->qp != NULL);
 
-    ibv_mr *MRInfo;
-    RemoteRegInfo *info = new RemoteRegInfo();
     info->addr = (uint64_t) recvBuf; // the addr the rdma write will write to
     info->rKey = memReg->rkey;
 
@@ -178,26 +178,20 @@ protected:
 
     PostWrSend sendWr((uint64_t) info, sizeof(RemoteRegInfo), MRInfo->lkey, clientId->qp);
     sendWr.Execute();
+
     D(std::cerr << "Sent addr=" << std::hex << info->addr << "\n");
     D(std::cerr << "Sent rkey=" << std::dec << info->rKey << "\n");
-
-    ibv_wc workComp = {};
-    int ret = 0;
-
-    while ((ret = ibv_poll_cq(compQueue, 1, &workComp)) == 0) {}
-
-    if (ret < 0)
-      printf("ibv_poll_cq returned %d\n", ret);
-
-    if (workComp.status == IBV_WC_SUCCESS)
-      printf("IBV_WC_SUCCESS\n");
-    else
-      printf("not IBV_WC_SUCCESS\n");
-
-    delete info;
   }
 
 public:
+  ClientRDMA() : MRInfo(NULL) {
+    info = new RemoteRegInfo();
+  }
+
+  ~ClientRDMA() {
+    delete info;
+  }
+
   void Start() override {
     assert(eventChannel != NULL);
     assert(clientId != NULL);
@@ -213,6 +207,11 @@ public:
     rdma_ack_cm_event(event);
 
     SendMRInfo();
+
+    sleep(1);
+
+    std::cout << "recv buffer: " << recvBuf << "\n";
+    WaitForCompletion();
   }
 };
 

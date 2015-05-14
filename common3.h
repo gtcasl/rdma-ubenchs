@@ -16,27 +16,64 @@ inline void test_nz(int t) {
     throw std::runtime_error("test_nz");
 }
 
-class PostWrSend {
+struct Sge {
+  ibv_sge sge;
 
-  uint64_t dataAddr;
-  uint32_t dataLen;
-  uint32_t localKey; // key of local memory region
+  Sge(uint64_t addr, uint32_t length, uint32_t lkey) {
+    sge = {};
+    sge.addr = addr;
+    sge.length = length;
+    sge.lkey = lkey;
+  }
+};
+
+class PostRDMAWrSend {
   ibv_qp *queuePair;
+  Sge *sge;
+  uint64_t rAddr;
+  uint32_t rKey;
 
 public:
-  PostWrSend(uint64_t addr, uint32_t len, uint32_t lkey, ibv_qp *qp)
-    : dataAddr(addr), dataLen(len), localKey(lkey), queuePair(qp) {
+  PostRDMAWrSend(uint64_t addr, uint32_t len, uint32_t lkey, ibv_qp *qp,
+                 uint64_t rAddr, uint32_t rKey)
+    : queuePair(qp), rAddr(rAddr), rKey(rKey) {
+    sge = new Sge(addr, len, lkey);
+  }
 
+  ~PostRDMAWrSend() {
+    delete sge;
   }
 
   void Execute() {
-    ibv_sge sge = {};
-    sge.addr = dataAddr;
-    sge.length = dataLen;
-    sge.lkey = localKey;
-
     ibv_send_wr sendWr = {};
-    sendWr.sg_list = &sge;
+    sendWr.sg_list = &(sge->sge);
+    sendWr.num_sge = 1;
+    sendWr.opcode = IBV_WR_RDMA_WRITE;
+    sendWr.next = NULL;
+    sendWr.wr.rdma.remote_addr = rAddr;
+    sendWr.wr.rdma.rkey = rKey;
+
+    test_nz(ibv_post_send(queuePair, &sendWr, NULL));
+  }
+};
+
+class PostWrSend {
+  ibv_qp *queuePair;
+  Sge *sge;
+
+public:
+  PostWrSend(uint64_t addr, uint32_t len, uint32_t lkey, ibv_qp *qp)
+    : queuePair(qp) {
+    sge = new Sge(addr, len, lkey);
+  }
+
+  ~PostWrSend() {
+    delete sge;
+  }
+
+  void Execute() {
+    ibv_send_wr sendWr = {};
+    sendWr.sg_list = &(sge->sge);
     sendWr.num_sge = 1;
     sendWr.opcode = IBV_WR_SEND;
     sendWr.send_flags = IBV_SEND_SIGNALED;
@@ -47,26 +84,22 @@ public:
 };
 
 class PostWrRecv {
-
-  uint64_t dataAddr;
-  uint32_t dataLen;
-  uint32_t localKey; // key of local memory region
   ibv_qp *queuePair;
+  Sge *sge;
 
 public:
   PostWrRecv(uint64_t addr, uint32_t len, uint32_t lkey, ibv_qp *qp)
-    : dataAddr(addr), dataLen(len), localKey(lkey), queuePair(qp) {
+    : queuePair(qp) {
+    sge = new Sge(addr, len, lkey);
+  }
 
+  ~PostWrRecv() {
+    delete sge;
   }
 
   void Execute() {
-    ibv_sge sge = {};
-    sge.addr = dataAddr;
-    sge.length = dataLen;
-    sge.lkey = localKey;
-
     ibv_recv_wr recvWr = {};
-    recvWr.sg_list = &sge;
+    recvWr.sg_list = &(sge->sge);
     recvWr.num_sge = 1;
     recvWr.next = NULL;
 

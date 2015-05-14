@@ -41,11 +41,6 @@ protected:
 
     // create a prot domain for the client rdma device
     assert((protDomain = ibv_alloc_pd(clientId->verbs)) != NULL);
-    assert((memReg = ibv_reg_mr(protDomain, (void *) data, 256,
-                                IBV_ACCESS_REMOTE_WRITE |
-                                IBV_ACCESS_LOCAL_WRITE |
-                                IBV_ACCESS_REMOTE_READ)) != NULL);
-
     assert((compQueue = ibv_create_cq(clientId->verbs, 32, 0, 0, 0)) != NULL);
 
     qpAttr.send_cq = qpAttr.recv_cq = compQueue;
@@ -144,6 +139,12 @@ public:
     assert(serverId != NULL);
 
     HandleConnectRequest();
+
+    assert((memReg = ibv_reg_mr(protDomain, (void *) data, 256,
+                                IBV_ACCESS_REMOTE_WRITE |
+                                IBV_ACCESS_LOCAL_WRITE |
+                                IBV_ACCESS_REMOTE_READ)) != NULL);
+
     HandleConnectionEstablished();
     SendWorkRequest();
     WaitForCompletion();
@@ -175,13 +176,29 @@ public:
                                 IBV_ACCESS_LOCAL_WRITE |
                                 IBV_ACCESS_REMOTE_READ)) != NULL);
 
+    // posting before receving RDMA_CM_EVENT_ESTABLISHED, otherwise
+    // it fails saying there is no receive posted.
     PostWrRecv recvWr((uint64_t) info, 256, memReg->lkey, clientId->qp);
     recvWr.Execute();
 
     HandleConnectionEstablished();
 
+    // now setup the remote memory where we'll be able to write directly
+    assert((memReg = ibv_reg_mr(protDomain, (void *) data, 256,
+                                IBV_ACCESS_REMOTE_WRITE |
+                                IBV_ACCESS_LOCAL_WRITE |
+                                IBV_ACCESS_REMOTE_READ)) != NULL);
+
     D(std::cerr << "client addr=" << std::hex << info->addr);
     D(std::cerr << "\nclient rkey=" << std::dec << info->rKey);
+
+    //WaitForCompletion();
+
+    PostRDMAWrSend rdmaSend((uint64_t) data, 256, memReg->lkey, clientId->qp,
+                            info->addr, info->rKey);
+    rdmaSend.Execute();
+
+    strcpy(data, "HellO worlD RDMA!");
 
     WaitForCompletion();
   }
