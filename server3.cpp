@@ -9,6 +9,7 @@
 #include "common3.h"
 
 class Server {
+protected:
   rdma_event_channel *eventChannel;
   rdma_cm_id *serverId;
   rdma_cm_id *clientId;
@@ -23,20 +24,28 @@ class Server {
   ibv_qp_init_attr qpAttr;
 
   char *data;
+  RemoteRegInfo *info; // TODO: move this to ServerRDMA
 
   void HandleConnectRequest() {
     assert(eventChannel != NULL);
     assert(serverId != NULL);
     assert(event == NULL);
+    D(std::cerr << "HandleConnectRequest\n");
 
     assert(rdma_get_cm_event(eventChannel, &event) == 0);
     assert(event->event == RDMA_CM_EVENT_CONNECT_REQUEST);
+
+    D(std::cerr << "Received RDMA_CM_EVENT_CONNECT_REQUEST\n");
 
     clientId = (rdma_cm_id *) event->id;
 
     // create a prot domain for the client rdma device
     assert((protDomain = ibv_alloc_pd(clientId->verbs)) != NULL);
-    assert((memReg = ibv_reg_mr(protDomain, (void *) data, 256,
+    //assert((memReg = ibv_reg_mr(protDomain, (void *) data, 256,
+    //                            IBV_ACCESS_REMOTE_WRITE |
+    //                            IBV_ACCESS_LOCAL_WRITE |
+    //                            IBV_ACCESS_REMOTE_READ)) != NULL);
+    assert((memReg = ibv_reg_mr(protDomain, (void *) info, sizeof(RemoteRegInfo),
                                 IBV_ACCESS_REMOTE_WRITE |
                                 IBV_ACCESS_LOCAL_WRITE |
                                 IBV_ACCESS_REMOTE_READ)) != NULL);
@@ -47,6 +56,11 @@ class Server {
 
     // queue pair
     assert(rdma_create_qp(clientId, protDomain, &qpAttr) == 0);
+
+    // TODO: this should not happen if regular server
+    PostWrRecv recvWr((uint64_t) info, 256, memReg->lkey, clientId->qp);
+    recvWr.Execute();
+
     assert(rdma_accept(clientId, &connParams) == 0);
 
     rdma_ack_cm_event(event);
@@ -54,6 +68,7 @@ class Server {
 
   void HandleConnectionEstablished() {
     assert(event != NULL);
+    D(std::cerr << "HandleConnectionEstablished\n");
 
     assert(rdma_get_cm_event(eventChannel, &event) == 0);
     assert(event->event == RDMA_CM_EVENT_ESTABLISHED);
@@ -112,9 +127,11 @@ public:
 
     assert(rdma_bind_addr(serverId, (sockaddr *) &sin) == 0);
     assert(rdma_listen(serverId, 6) == 0);
+
+    info = new RemoteRegInfo();// TODO remove from here
   }
 
-  ~Server() {
+  virtual ~Server() {
     if (clientId)
       rdma_destroy_qp(clientId);
 
@@ -132,6 +149,7 @@ public:
 
     rdma_destroy_id(serverId);
     rdma_destroy_event_channel(eventChannel);
+    delete info;// TODO remove from here
   }
 
   virtual void Start() {
@@ -147,11 +165,39 @@ public:
 };
 
 class ServerRDMA : Server {
+protected:
 
+  void RecvMRInfo() {
+    int ret = 0;
 
+    ibv_wc workComp = {};
+
+    while ((ret = ibv_poll_cq(compQueue, 1, &workComp)) == 0) {}
+
+    if (ret < 0)
+      printf("ibv_poll_cq returned %d\n", ret);
+
+    if (workComp.status == IBV_WC_SUCCESS)
+      printf("IBV_WC_SUCCESS\n");
+    else
+      printf("not IBV_WC_SUCCESS\n");
+
+    D(std::cerr << "client addr=" << std::hex << info->addr);
+    D(std::cerr << "\nclient rkey=" << std::dec << info->rKey);
+  }
+
+public:
+  void Start() override {
+    assert(eventChannel != NULL);
+    assert(serverId != NULL);
+
+    HandleConnectRequest();
+    HandleConnectionEstablished();
+    RecvMRInfo();
+  }
 };
 
 int main() {
-  Server server;
+  ServerRDMA server;
   server.Start();
 }

@@ -29,8 +29,11 @@ protected:
     assert(clientId != NULL);
     assert(event == NULL);
 
+    D(std::cerr << "HandleAddrResolved\n");
     assert(rdma_get_cm_event(eventChannel, &event) == 0);
     assert(event->event == RDMA_CM_EVENT_ADDR_RESOLVED);
+
+    D(std::cerr << "Received RDMA_CM_EVENT_ADDR_RESOLVED\n");
 
     rdma_ack_cm_event(event);
   }
@@ -38,9 +41,11 @@ protected:
   void HandleRouteResolved() {
     assert(event != NULL);
 
+    D(std::cerr << "HandleRouteResolved\n");
     assert(rdma_resolve_route(clientId, 2000) == 0);
     assert(rdma_get_cm_event(eventChannel, &event) == 0);
     assert(event->event == RDMA_CM_EVENT_ROUTE_RESOLVED);
+    D(std::cerr << "Received RDMA_CM_EVENT_ROUTE_RESOLVED\n");
     rdma_ack_cm_event(event);
   }
 
@@ -160,8 +165,35 @@ protected:
     assert(memReg != NULL);
     assert(clientId->qp != NULL);
 
-    PostWrSend sendWr((uint64_t) memReg, sizeof(*memReg), memReg->lkey, clientId->qp);
+    ibv_mr *MRInfo;
+    RemoteRegInfo *info = new RemoteRegInfo();
+    info->addr = (uint64_t) recvBuf; // the addr the rdma write will write to
+    info->rKey = memReg->rkey;
+
+    assert((MRInfo = ibv_reg_mr(protDomain, (void *) info, sizeof(RemoteRegInfo),
+                                IBV_ACCESS_REMOTE_WRITE |
+                                IBV_ACCESS_LOCAL_WRITE |
+                                IBV_ACCESS_REMOTE_READ)) != NULL);
+
+    PostWrSend sendWr((uint64_t) info, sizeof(RemoteRegInfo), MRInfo->lkey, clientId->qp);
     sendWr.Execute();
+    D(std::cerr << "Sent addr=" << std::hex << info->addr << "\n");
+    D(std::cerr << "Sent rkey=" << std::dec << info->rKey << "\n");
+
+    ibv_wc workComp = {};
+    int ret = 0;
+
+    while ((ret = ibv_poll_cq(compQueue, 1, &workComp)) == 0) {}
+
+    if (ret < 0)
+      printf("ibv_poll_cq returned %d\n", ret);
+
+    if (workComp.status == IBV_WC_SUCCESS)
+      printf("IBV_WC_SUCCESS\n");
+    else
+      printf("not IBV_WC_SUCCESS\n");
+
+    delete info;
   }
 
 public:
@@ -172,11 +204,18 @@ public:
     HandleAddrResolved();
     HandleRouteResolved();
     Setup();
+
+    assert(rdma_connect(clientId, &connParams) == 0);
+    assert(rdma_get_cm_event(eventChannel, &event) == 0);
+    assert(event->event == RDMA_CM_EVENT_ESTABLISHED);
+
+    rdma_ack_cm_event(event);
+
     SendMRInfo();
   }
 };
 
 int main() {
-  Client client;
+  ClientRDMA client;
   client.Start();
 }

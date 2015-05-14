@@ -3,6 +3,13 @@
 
 #include <rdma/rdma_cma.h>
 #include <stdexcept>
+#include <iostream>
+
+#ifndef REL
+#define D(x) x
+#else
+#define D(x)
+#endif
 
 inline void test_nz(int t) {
   if (t != 0)
@@ -65,6 +72,11 @@ public:
 
     test_nz(ibv_post_recv(queuePair, &recvWr, NULL));
   }
+};
+
+struct RemoteRegInfo {
+  uint64_t addr;
+  uint32_t rKey;
 };
 
 #endif
