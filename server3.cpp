@@ -4,6 +4,7 @@
 #include <cassert>
 #include <string.h>
 #include <stdlib.h>
+#include <getopt.h>
 
 #include "common3.h"
 
@@ -178,14 +179,39 @@ public:
     recvWr.Execute();
 
     HandleConnectionEstablished();
-    WaitForCompletion();
 
     D(std::cerr << "client addr=" << std::hex << info->addr);
     D(std::cerr << "\nclient rkey=" << std::dec << info->rKey);
+
+    WaitForCompletion();
   }
 };
 
-int main() {
-  ServerRDMA server;
-  server.Start();
+int main(int argc, char *argv[]) {
+  bool rdma = false;
+
+  while (1) {
+    int c = getopt(argc, argv, "r");
+
+    if (c == -1)
+      break;
+
+    switch(c) {
+    case 'r':
+      rdma = true;
+      break;
+    default:
+      std::cerr << "Invalid option" << "\n";
+    }
+  }
+
+  if (rdma) {
+    ServerRDMA server;
+    server.Start();
+  } else {
+    Server server;
+    server.Start();
+  }
+
+  return 0;
 }

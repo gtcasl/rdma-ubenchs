@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <getopt.h>
 
 #include "common3.h"
 
@@ -215,7 +216,31 @@ public:
   }
 };
 
-int main() {
-  ClientRDMA client;
-  client.Start();
+int main(int argc, char *argv[]) {
+  bool rdma = false;
+
+  while (1) {
+    int c = getopt(argc, argv, "r");
+
+    if (c == -1)
+      break;
+
+    switch(c) {
+    case 'r':
+      rdma = true;
+      break;
+    default:
+      std::cerr << "Invalid option" << "\n";
+    }
+  }
+
+  if (rdma) {
+    ClientRDMA client;
+    client.Start();
+  } else {
+    Client client;
+    client.Start();
+  }
+
+  return 0;
 }
