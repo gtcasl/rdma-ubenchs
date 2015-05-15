@@ -162,34 +162,12 @@ public:
 class ClientRDMA : Client {
 protected:
   ibv_mr *MRInfo;
-  RemoteRegInfo *info;
-
-  void SendMRInfo() {
-    assert(memReg != NULL);
-    assert(clientId->qp != NULL);
-
-    info->addr = (uint64_t) recvBuf; // the addr the rdma write will write to
-    info->rKey = memReg->rkey;
-
-    assert((MRInfo = ibv_reg_mr(protDomain, (void *) info, sizeof(RemoteRegInfo),
-                                IBV_ACCESS_REMOTE_WRITE |
-                                IBV_ACCESS_LOCAL_WRITE |
-                                IBV_ACCESS_REMOTE_READ)) != NULL);
-
-    PostWrSend sendWr((uint64_t) info, sizeof(RemoteRegInfo), MRInfo->lkey, clientId->qp);
-    sendWr.Execute();
-
-    D(std::cerr << "Sent addr=" << std::hex << info->addr << "\n");
-    D(std::cerr << "Sent rkey=" << std::dec << info->rKey << "\n");
-  }
 
 public:
   ClientRDMA() : MRInfo(NULL) {
-    info = new RemoteRegInfo();
   }
 
   ~ClientRDMA() {
-    delete info;
   }
 
   void Start() override {
@@ -206,7 +184,8 @@ public:
 
     rdma_ack_cm_event(event);
 
-    SendMRInfo();
+    SendRRI sendRRI(recvBuf, memReg, protDomain, clientId->qp);
+    sendRRI.Execute();
 
     sleep(1);
 

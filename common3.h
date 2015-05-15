@@ -11,9 +11,14 @@
 #define D(x)
 #endif
 
-inline void test_nz(int t) {
+inline void check_z(int t) {
   if (t != 0)
-    throw std::runtime_error("test_nz");
+    throw std::runtime_error("check_z");
+}
+
+inline void check_nn(void *t) {
+  if (t == NULL)
+    throw std::runtime_error("check_nn");
 }
 
 struct Sge {
@@ -53,7 +58,7 @@ public:
     sendWr.wr.rdma.remote_addr = rAddr;
     sendWr.wr.rdma.rkey = rKey;
 
-    test_nz(ibv_post_send(queuePair, &sendWr, NULL));
+    check_z(ibv_post_send(queuePair, &sendWr, NULL));
   }
 };
 
@@ -79,7 +84,7 @@ public:
     sendWr.send_flags = IBV_SEND_SIGNALED;
     sendWr.next = NULL;
 
-    test_nz(ibv_post_send(queuePair, &sendWr, NULL));
+    check_z(ibv_post_send(queuePair, &sendWr, NULL));
   }
 };
 
@@ -103,13 +108,47 @@ public:
     recvWr.num_sge = 1;
     recvWr.next = NULL;
 
-    test_nz(ibv_post_recv(queuePair, &recvWr, NULL));
+    check_z(ibv_post_recv(queuePair, &recvWr, NULL));
   }
 };
 
 struct RemoteRegInfo {
   uint64_t addr;
   uint32_t rKey;
+};
+
+class SendRRI {
+  ibv_mr *mr;
+  RemoteRegInfo *info;
+  ibv_qp *qp;
+
+public:
+  SendRRI(void *buf, ibv_mr *bufMemReg, ibv_pd *protDomain, ibv_qp *qp) : mr(NULL), info(NULL), qp(qp) {
+    assert(buf != NULL);
+    assert(bufMemReg != NULL);
+    assert(protDomain != NULL);
+    assert(qp != NULL);
+
+    info = new RemoteRegInfo();
+
+    info->addr = (uint64_t) buf;
+    info->rKey = bufMemReg->rkey;
+
+    check_nn(mr = ibv_reg_mr(protDomain, (void *) info, sizeof(RemoteRegInfo),
+                            IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ));
+  }
+
+  ~SendRRI() {
+    delete info;
+  }
+
+  void Execute() {
+    PostWrSend send((uint64_t) info, sizeof(RemoteRegInfo), mr->lkey, qp);
+    send.Execute();
+
+    D(std::cerr << "Sent addr=" << std::hex << info->addr << "\n");
+    D(std::cerr << "Sent rkey=" << std::dec << info->rKey << "\n");
+  }
 };
 
 #endif
