@@ -205,29 +205,26 @@ public:
 };
 
 int main(int argc, char *argv[]) {
-  bool rdma = false;
+  int setting = parse_cl(argc, argv);
 
-  while (1) {
-    int c = getopt(argc, argv, "r");
-
-    if (c == -1)
+  switch(setting) {
+    case 1: // client reads
+    {
+      ServerRDMA server;
+      server.Start();
       break;
-
-    switch(c) {
-    case 'r':
-      rdma = true;
-      break;
-    default:
-      std::cerr << "Invalid option" << "\n";
     }
-  }
-
-  if (rdma) {
-    ServerRDMA server;
-    server.Start();
-  } else {
-    Server server;
-    server.Start();
+    case 2: // server writes
+    {
+      ServerRDMA server;
+      server.Start();
+      break;
+    }
+    default:
+    {
+      Server server;
+      server.Start();
+    }
   }
 
   return 0;

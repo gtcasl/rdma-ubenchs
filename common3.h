@@ -151,4 +151,25 @@ public:
   }
 };
 
+int parse_cl(int argc, char *argv[]) {
+  while (1) {
+    int c = getopt(argc, argv, "rw");
+
+    if (c == -1) {
+      return 0;
+    }
+
+    switch(c) {
+    case 'r':
+      return 1; // client reads
+      break;
+    case 'w':
+      return 2; // server writes
+      break;
+    default:
+      std::cerr << "Invalid option" << "\n";
+    }
+  }
+}
+
 #endif
