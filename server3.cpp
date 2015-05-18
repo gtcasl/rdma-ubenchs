@@ -9,23 +9,12 @@
 
 #include "common3.h"
 
-class Server {
+class Server : public RDMAPeer {
 protected:
-  rdma_event_channel *eventChannel;
   rdma_cm_id *serverId;
   rdma_cm_id *clientId;
-  int port;
-  ibv_pd *protDomain;
   ibv_mr *memReg;
-  ibv_cq *compQueue;
-  rdma_cm_event *event;
-
-  rdma_conn_param connParams;
-  sockaddr_in sin;
-  ibv_qp_init_attr qpAttr;
-
   char *serverBuff;
-
 
   void HandleConnectRequest() {
     assert(eventChannel != NULL);
@@ -71,24 +60,8 @@ protected:
     send.Execute();
   }
 
-  void WaitForCompletion() {
-    assert(compQueue != NULL);
-    int ret = 0;
-
-    ibv_wc workComp = {};
-
-    while ((ret = ibv_poll_cq(compQueue, 1, &workComp)) == 0) {}
-
-    if (ret < 0)
-      D(std::cerr << "ibv_poll_cq returned " << ret << "\n");
-
-    if (workComp.status != IBV_WC_SUCCESS)
-      D(std::cerr << "not IBV_WC_SUCCESS: " << ret << "\n");
-  }
-
 public:
-  Server() : eventChannel(NULL), serverId(NULL), clientId(NULL), port(21234),
-             protDomain(NULL), memReg(NULL), compQueue(NULL), event(NULL) {
+  Server() : serverId(NULL), clientId(NULL), memReg(NULL), serverBuff(NULL) {
 
     connParams = {};
     connParams.initiator_depth = 1;

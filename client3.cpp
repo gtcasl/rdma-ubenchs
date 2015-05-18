@@ -10,20 +10,10 @@
 
 #include "common3.h"
 
-class Client {
+class Client : public RDMAPeer {
 protected:
-  rdma_event_channel *eventChannel;
   rdma_cm_id *clientId;
-  int port;
-  ibv_pd *protDomain;
   ibv_mr *memReg;
-  ibv_cq *compQueue;
-  rdma_cm_event *event;
-
-  rdma_conn_param connParams;
-  sockaddr_in sin;
-  ibv_qp_init_attr qpAttr;
-
   char *recvBuf;
 
   void HandleAddrResolved() {
@@ -82,50 +72,20 @@ protected:
     rdma_ack_cm_event(event);
   }
 
-  void WaitForCompletion() {
-    assert(compQueue != NULL);
-    int ret = 0;
-
-    ibv_wc workComp = {};
-
-    while ((ret = ibv_poll_cq(compQueue, 1, &workComp)) == 0) {}
-
-    if (ret < 0)
-      printf("ibv_poll_cq returned %d\n", ret);
-
-    if (workComp.status == IBV_WC_SUCCESS)
-      printf("IBV_WC_SUCCESS\n");
-    else
-      printf("not IBV_WC_SUCCESS\n");
-  }
-
 public:
-  Client() : eventChannel(NULL), clientId(NULL), port(21234),
-             protDomain(NULL), memReg(NULL), compQueue(NULL), event(NULL) {
-
-    connParams = {};
-    connParams.initiator_depth = 1;
-    connParams.responder_resources = 1;
-    qpAttr = {};
-    qpAttr.cap.max_send_wr = 32;
-    qpAttr.cap.max_recv_wr = 32;
-    qpAttr.cap.max_send_sge = 1;
-    qpAttr.cap.max_recv_sge = 1;
-    qpAttr.cap.max_inline_data = 64;
-    qpAttr.qp_type = IBV_QPT_RC;
+  Client() : clientId(NULL), recvBuf(NULL) {
 
     recvBuf = (char *) malloc(sizeof(char) * 256);
     memset(recvBuf, '\0', 256);
-
-    assert((eventChannel = rdma_create_event_channel()) != NULL);
-    assert(rdma_create_id(eventChannel, &clientId, NULL, RDMA_PS_TCP) == 0);
 
     sin = {};
     sin.sin_family = AF_INET;
     sin.sin_port = htons(port);
     sin.sin_addr.s_addr = inet_addr("10.0.1.37");
 
-    assert(rdma_resolve_addr(clientId, NULL, (sockaddr *) &sin, 2000) == 0);
+    check_nn(eventChannel = rdma_create_event_channel());
+    check_z(rdma_create_id(eventChannel, &clientId, NULL, RDMA_PS_TCP));
+    check_z(rdma_resolve_addr(clientId, NULL, (sockaddr *) &sin, 2000));
   }
 
   ~Client() {
@@ -217,11 +177,12 @@ public:
 
     // receive RRI
     ibv_mr *mrInfo;
-    check_nn(mrInfo = ibv_reg_mr(protDomain, (void *) info, 256,
+    check_nn(mrInfo = ibv_reg_mr(protDomain, (void *) info, sizeof(RemoteRegInfo),
                                 IBV_ACCESS_REMOTE_WRITE |
                                 IBV_ACCESS_LOCAL_WRITE |
                                 IBV_ACCESS_REMOTE_READ));
-    PostWrRecv recvWr((uint64_t) info, 256, mrInfo->lkey, clientId->qp);
+    PostWrRecv recvWr((uint64_t) info, sizeof(RemoteRegInfo),
+                      mrInfo->lkey, clientId->qp);
     recvWr.Execute();
 
     assert(rdma_connect(clientId, &connParams) == 0);

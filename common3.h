@@ -21,6 +21,49 @@ inline void check_nn(void *t) {
     throw std::runtime_error("check_nn");
 }
 
+class RDMAPeer {
+protected:
+  rdma_event_channel *eventChannel;
+  int port;
+  ibv_pd *protDomain;
+  ibv_cq *compQueue;
+  rdma_cm_event *event;
+
+  rdma_conn_param connParams;
+  sockaddr_in sin;
+  ibv_qp_init_attr qpAttr;
+
+public:
+  RDMAPeer() : eventChannel(NULL), port(21234), protDomain(NULL), compQueue(NULL),
+               event(NULL) {
+    connParams = {};
+    connParams.initiator_depth = 1;
+    connParams.responder_resources = 1;
+    qpAttr = {};
+    qpAttr.cap.max_send_wr = 32;
+    qpAttr.cap.max_recv_wr = 32;
+    qpAttr.cap.max_send_sge = 1;
+    qpAttr.cap.max_recv_sge = 1;
+    qpAttr.cap.max_inline_data = 64;
+    qpAttr.qp_type = IBV_QPT_RC;
+  }
+
+  void WaitForCompletion() {
+    assert(compQueue != NULL);
+    int ret = 0;
+
+    ibv_wc workComp = {};
+
+    while ((ret = ibv_poll_cq(compQueue, 1, &workComp)) == 0) {}
+
+    if (ret < 0)
+      D(std::cerr << "ibv_poll_cq returned " << ret << "\n");
+
+    if (workComp.status != IBV_WC_SUCCESS)
+      D(std::cerr << "not IBV_WC_SUCCESS: " << ret << "\n");
+  }
+};
+
 struct Sge {
   ibv_sge sge;
 
