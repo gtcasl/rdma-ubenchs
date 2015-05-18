@@ -104,6 +104,8 @@ public:
              protDomain(NULL), memReg(NULL), compQueue(NULL), event(NULL) {
 
     connParams = {};
+    connParams.initiator_depth = 1;
+    connParams.responder_resources = 1;
     qpAttr = {};
     qpAttr.cap.max_send_wr = 32;
     qpAttr.cap.max_recv_wr = 32;
@@ -113,6 +115,7 @@ public:
     qpAttr.qp_type = IBV_QPT_RC;
 
     recvBuf = (char *) malloc(sizeof(char) * 256);
+    memset(recvBuf, '\0', 256);
 
     assert((eventChannel = rdma_create_event_channel()) != NULL);
     assert(rdma_create_id(eventChannel, &clientId, NULL, RDMA_PS_TCP) == 0);
@@ -159,15 +162,12 @@ public:
 
 };
 
-class ClientRDMA : Client {
-protected:
-  ibv_mr *MRInfo;
-
+class ClientSWrites : Client {
 public:
-  ClientRDMA() : MRInfo(NULL) {
+  ClientSWrites() {
   }
 
-  ~ClientRDMA() {
+  ~ClientSWrites() {
   }
 
   void Start() override {
@@ -194,19 +194,69 @@ public:
   }
 };
 
+class ClientCReads : Client {
+  RemoteRegInfo *info;
+public:
+
+  ClientCReads() {
+    info = new RemoteRegInfo();
+  }
+
+  ~ClientCReads() {
+    delete info;
+  }
+
+  void Start() override {
+    assert(eventChannel != NULL);
+    assert(clientId != NULL);
+
+    HandleAddrResolved();
+    HandleRouteResolved();
+    Setup();
+
+    // receive RRI
+    ibv_mr *mrInfo;
+    check_nn(mrInfo = ibv_reg_mr(protDomain, (void *) info, 256,
+                                IBV_ACCESS_REMOTE_WRITE |
+                                IBV_ACCESS_LOCAL_WRITE |
+                                IBV_ACCESS_REMOTE_READ));
+    PostWrRecv recvWr((uint64_t) info, 256, mrInfo->lkey, clientId->qp);
+    recvWr.Execute();
+
+    assert(rdma_connect(clientId, &connParams) == 0);
+    assert(rdma_get_cm_event(eventChannel, &event) == 0);
+    assert(event->event == RDMA_CM_EVENT_ESTABLISHED);
+
+    rdma_ack_cm_event(event);
+
+    WaitForCompletion();
+    D(std::cout << "received addr=" << std::hex << info->addr);
+    D(std::cout << "\nreceived rkey=" << std::dec << info->rKey);
+
+    // issue RDMA read
+    PostRDMAWrSend rdmaSend((uint64_t) recvBuf, 256, memReg->lkey, clientId->qp,
+                            info->addr, info->rKey);
+    rdmaSend.Execute(true);
+    sleep(1);
+
+    std::cout << "\nrecv buffer: " << recvBuf << "\n";
+  }
+
+};
+
 int main(int argc, char *argv[]) {
   int setting = parse_cl(argc, argv);
 
   switch(setting) {
     case 1: // client reads
     {
-      ClientRDMA client;
+      ClientCReads client;
       client.Start();
       break;
     }
     case 2: // server writes
     {
-      ClientRDMA client;
+      ClientSWrites client;
       client.Start();
       break;
     }

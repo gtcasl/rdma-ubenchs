@@ -49,11 +49,17 @@ public:
     delete sge;
   }
 
-  void Execute() {
+  void Execute(bool read = false) {
     ibv_send_wr sendWr = {};
     sendWr.sg_list = &(sge->sge);
     sendWr.num_sge = 1;
-    sendWr.opcode = IBV_WR_RDMA_WRITE;
+
+    if (read)
+      sendWr.opcode = IBV_WR_RDMA_READ;
+    else
+      sendWr.opcode = IBV_WR_RDMA_WRITE;
+
+    sendWr.send_flags = IBV_SEND_SIGNALED;
     sendWr.next = NULL;
     sendWr.wr.rdma.remote_addr = rAddr;
     sendWr.wr.rdma.rkey = rKey;

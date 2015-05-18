@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <getopt.h>
+#include <unistd.h>
 
 #include "common3.h"
 
@@ -23,7 +24,7 @@ protected:
   sockaddr_in sin;
   ibv_qp_init_attr qpAttr;
 
-  char *data;
+  char *serverBuff;
 
 
   void HandleConnectRequest() {
@@ -62,11 +63,11 @@ protected:
   }
 
   void SendWorkRequest() {
-    assert(data != NULL);
+    assert(serverBuff != NULL);
     assert(memReg != NULL);
     assert(clientId != NULL);
 
-    PostWrSend send((uint64_t) data, strlen(data) + 1, memReg->lkey, clientId->qp);
+    PostWrSend send((uint64_t) serverBuff, strlen(serverBuff) + 1, memReg->lkey, clientId->qp);
     send.Execute();
   }
 
@@ -82,7 +83,7 @@ protected:
       D(std::cerr << "ibv_poll_cq returned " << ret << "\n");
 
     if (workComp.status != IBV_WC_SUCCESS)
-      D(std::cerr << "not IBV_WC_SUCCESS" << ret << "\n");
+      D(std::cerr << "not IBV_WC_SUCCESS: " << ret << "\n");
   }
 
 public:
@@ -90,6 +91,8 @@ public:
              protDomain(NULL), memReg(NULL), compQueue(NULL), event(NULL) {
 
     connParams = {};
+    connParams.initiator_depth = 1;
+    connParams.responder_resources = 1;
     qpAttr = {};
     qpAttr.cap.max_send_wr = 32;
     qpAttr.cap.max_recv_wr = 32;
@@ -98,8 +101,8 @@ public:
     qpAttr.cap.max_inline_data = 64;
     qpAttr.qp_type = IBV_QPT_RC;
 
-    data = (char *) malloc(sizeof(char) * 256);
-    strcpy(data, "HellO worlD!");
+    serverBuff = (char *) malloc(sizeof(char) * 256);
+    strcpy(serverBuff, "HellO worlD!");
 
     assert((eventChannel = rdma_create_event_channel()) != NULL);
     assert(rdma_create_id(eventChannel, &serverId, NULL, RDMA_PS_TCP) == 0);
@@ -126,8 +129,8 @@ public:
     if (protDomain)
       ibv_dealloc_pd(protDomain);
 
-    if (data)
-      free(data);
+    if (serverBuff)
+      free(serverBuff);
 
     rdma_destroy_id(serverId);
     rdma_destroy_event_channel(eventChannel);
@@ -140,7 +143,7 @@ public:
 
     HandleConnectRequest();
 
-    assert((memReg = ibv_reg_mr(protDomain, (void *) data, 256,
+    assert((memReg = ibv_reg_mr(protDomain, (void *) serverBuff, 256,
                                 IBV_ACCESS_REMOTE_WRITE |
                                 IBV_ACCESS_LOCAL_WRITE |
                                 IBV_ACCESS_REMOTE_READ)) != NULL);
@@ -152,16 +155,16 @@ public:
 
 };
 
-class ServerRDMA : Server {
+class ServerSWrites : Server {
   RemoteRegInfo *info;
 
 public:
 
-  ServerRDMA() {
+  ServerSWrites() {
     info = new RemoteRegInfo();
   }
 
-  ~ServerRDMA() {
+  ~ServerSWrites() {
     delete info;
   }
 
@@ -176,6 +179,8 @@ public:
                                 IBV_ACCESS_LOCAL_WRITE |
                                 IBV_ACCESS_REMOTE_READ)) != NULL);
 
+    // TODO: should dereg the memReg
+
     // posting before receving RDMA_CM_EVENT_ESTABLISHED, otherwise
     // it fails saying there is no receive posted.
     PostWrRecv recvWr((uint64_t) info, 256, memReg->lkey, clientId->qp);
@@ -184,7 +189,7 @@ public:
     HandleConnectionEstablished();
 
     // now setup the remote memory where we'll be able to write directly
-    assert((memReg = ibv_reg_mr(protDomain, (void *) data, 256,
+    assert((memReg = ibv_reg_mr(protDomain, (void *) serverBuff, 256,
                                 IBV_ACCESS_REMOTE_WRITE |
                                 IBV_ACCESS_LOCAL_WRITE |
                                 IBV_ACCESS_REMOTE_READ)) != NULL);
@@ -194,13 +199,69 @@ public:
 
     //WaitForCompletion();
 
-    PostRDMAWrSend rdmaSend((uint64_t) data, 256, memReg->lkey, clientId->qp,
+    PostRDMAWrSend rdmaSend((uint64_t) serverBuff, 256, memReg->lkey, clientId->qp,
                             info->addr, info->rKey);
     rdmaSend.Execute();
 
-    strcpy(data, "HellO worlD RDMA!");
+    strcpy(serverBuff, "HellO worlD RDMA!");
 
     WaitForCompletion();
+  }
+};
+
+class ServerCReads : Server {
+  RemoteRegInfo *info;
+
+public:
+
+  ServerCReads() {
+  }
+
+  ~ServerCReads() {
+  }
+
+  void Start() override {
+    assert(eventChannel != NULL);
+    assert(serverId != NULL);
+
+    HandleConnectRequest();
+
+    //assert((memReg = ibv_reg_mr(protDomain, (void *) info, sizeof(RemoteRegInfo),
+    //                            IBV_ACCESS_REMOTE_WRITE |
+    //                            IBV_ACCESS_LOCAL_WRITE |
+    //                            IBV_ACCESS_REMOTE_READ)) != NULL);
+
+    // posting before receving RDMA_CM_EVENT_ESTABLISHED, otherwise
+    // it fails saying there is no receive posted.
+    //PostWrRecv recvWr((uint64_t) info, 256, memReg->lkey, clientId->qp);
+    //recvWr.Execute();
+
+    HandleConnectionEstablished();
+    strcpy(serverBuff, "HellO worlD This is server's buff!");
+
+    // now setup the remote memory where we'll be able to write directly
+    assert((memReg = ibv_reg_mr(protDomain, (void *) serverBuff, 256,
+                                IBV_ACCESS_REMOTE_WRITE |
+                                IBV_ACCESS_LOCAL_WRITE |
+                                IBV_ACCESS_REMOTE_READ)) != NULL);
+
+
+    // send the RRI
+    SendRRI sendRRI(serverBuff, memReg, protDomain, clientId->qp);
+    sendRRI.Execute();
+    //WaitForCompletion();
+    strcpy(serverBuff, "HellO worlD This is server's buff!");
+
+    //PostRDMAWrSend rdmaSend((uint64_t) serverBuff, 256, memReg->lkey, clientId->qp,
+    //                        info->addr, info->rKey);
+    //rdmaSend.Execute();
+
+
+
+
+    WaitForCompletion();
+    sleep(1);
+
   }
 };
 
@@ -210,13 +271,13 @@ int main(int argc, char *argv[]) {
   switch(setting) {
     case 1: // client reads
     {
-      ServerRDMA server;
+      ServerCReads server;
       server.Start();
       break;
     }
     case 2: // server writes
     {
-      ServerRDMA server;
+      ServerSWrites server;
       server.Start();
       break;
     }
