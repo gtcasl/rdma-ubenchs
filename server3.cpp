@@ -60,6 +60,14 @@ protected:
     send.Execute();
   }
 
+  void HandleDisconnect() {
+    assert(event != NULL);
+    D(std::cerr << "HandleDisconnect\n");
+
+    check_z(rdma_get_cm_event(eventChannel, &event));
+    assert(event->event == RDMA_CM_EVENT_DISCONNECTED);
+  }
+
 public:
   Server() : serverId(NULL), clientId(NULL), memReg(NULL), serverBuff(NULL) {
 
@@ -93,9 +101,6 @@ public:
     if (clientId)
       rdma_destroy_qp(clientId);
 
-    if (memReg)
-      ibv_dereg_mr(memReg);
-
     if (compQueue)
       ibv_destroy_cq(compQueue);
 
@@ -124,8 +129,8 @@ public:
     HandleConnectionEstablished();
     SendWorkRequest();
     WaitForCompletion();
+    HandleDisconnect();
   }
-
 };
 
 class ServerSWrites : Server {
@@ -161,6 +166,7 @@ public:
 
     HandleConnectionEstablished();
 
+    check_z(ibv_dereg_mr(memReg));
     // now setup the remote memory where we'll be able to write directly
     assert((memReg = ibv_reg_mr(protDomain, (void *) serverBuff, 256,
                                 IBV_ACCESS_REMOTE_WRITE |
@@ -179,6 +185,9 @@ public:
     strcpy(serverBuff, "HellO worlD RDMA!");
 
     WaitForCompletion();
+
+    check_z(ibv_dereg_mr(memReg));
+    HandleDisconnect();
   }
 };
 
@@ -207,13 +216,13 @@ public:
                                 IBV_ACCESS_LOCAL_WRITE |
                                 IBV_ACCESS_REMOTE_READ)) != NULL);
 
-
     // send the RRI
     SendRRI sendRRI(serverBuff, memReg, protDomain, clientId->qp);
     sendRRI.Execute();
-    strcpy(serverBuff, "HellO worlD This is server's buff!");
 
     WaitForCompletion();
+    check_z(ibv_dereg_mr(memReg));
+    HandleDisconnect();
   }
 };
 

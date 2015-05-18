@@ -4,12 +4,17 @@
 #include <rdma/rdma_cma.h>
 #include <stdexcept>
 #include <iostream>
+#include <chrono>
 
 #ifndef REL
 #define D(x) x
 #else
 #define D(x)
 #endif
+
+typedef std::chrono::high_resolution_clock Time;
+typedef std::chrono::nanoseconds nanosec;
+typedef std::chrono::duration<float> dsec;
 
 inline void check_z(int t) {
   if (t != 0)
@@ -19,6 +24,17 @@ inline void check_z(int t) {
 inline void check_nn(void *t) {
   if (t == NULL)
     throw std::runtime_error("check_nn");
+}
+
+inline Time::time_point timer_start() {
+  return Time::now();
+}
+
+inline void timer_end(const Time::time_point &t0) {
+  Time::time_point t1 = Time::now();
+  dsec duration = t1 - t0;
+  nanosec res = std::chrono::duration_cast<nanosec>(duration);
+  std::cout << "elapsed time: " << res.count() << " ns\n";
 }
 
 class RDMAPeer {

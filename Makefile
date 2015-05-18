@@ -1,5 +1,5 @@
 CXX:=g++
-CXXFLAGS:=-Wall -Werror -std=c++11
+CXXFLAGS:=-Wall -Werror -std=c++11 -O2
 LDFLAGS:=-lrdmacm -libverbs -lpthread
 BIN:=server3 client3
 

@@ -8,6 +8,7 @@
 #include <getopt.h>
 #include <unistd.h>
 
+
 #include "common3.h"
 
 class Client : public RDMAPeer {
@@ -118,6 +119,7 @@ public:
     ReceiveWR();
     WaitForCompletion();
     printf("data received: %s\n", recvBuf);
+    rdma_disconnect(clientId);
   }
 
 };
@@ -151,7 +153,7 @@ public:
 
     std::cout << "recv buffer: " << recvBuf << "\n";
     WaitForCompletion();
-
+    rdma_disconnect(clientId);
   }
 };
 
@@ -192,18 +194,22 @@ public:
     rdma_ack_cm_event(event);
 
     WaitForCompletion();
-    D(std::cout << "received addr=" << std::hex << info->addr);
-    D(std::cout << "\nreceived rkey=" << std::dec << info->rKey);
+    D(std::cout << "received addr=" << std::hex << info->addr << "\n");
+    D(std::cout << "received rkey=" << std::dec << info->rKey << "\n");
+
+    auto t0 = timer_start();
 
     // issue RDMA read
     PostRDMAWrSend rdmaSend((uint64_t) recvBuf, 256, memReg->lkey, clientId->qp,
                             info->addr, info->rKey);
     rdmaSend.Execute(true);
-
     WaitForCompletion();
-    std::cout << "\nrecv buffer: " << recvBuf << "\n";
-  }
 
+    timer_end(t0);
+    std::cout << "\nrecv buffer: " << recvBuf << "\n";
+
+    rdma_disconnect(clientId);
+  }
 };
 
 int main(int argc, char *argv[]) {
