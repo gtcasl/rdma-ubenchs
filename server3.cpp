@@ -226,20 +226,9 @@ public:
 
     HandleConnectRequest();
 
-    //assert((memReg = ibv_reg_mr(protDomain, (void *) info, sizeof(RemoteRegInfo),
-    //                            IBV_ACCESS_REMOTE_WRITE |
-    //                            IBV_ACCESS_LOCAL_WRITE |
-    //                            IBV_ACCESS_REMOTE_READ)) != NULL);
-
-    // posting before receving RDMA_CM_EVENT_ESTABLISHED, otherwise
-    // it fails saying there is no receive posted.
-    //PostWrRecv recvWr((uint64_t) info, 256, memReg->lkey, clientId->qp);
-    //recvWr.Execute();
-
     HandleConnectionEstablished();
     strcpy(serverBuff, "HellO worlD This is server's buff!");
 
-    // now setup the remote memory where we'll be able to write directly
     assert((memReg = ibv_reg_mr(protDomain, (void *) serverBuff, 256,
                                 IBV_ACCESS_REMOTE_WRITE |
                                 IBV_ACCESS_LOCAL_WRITE |
@@ -249,19 +238,9 @@ public:
     // send the RRI
     SendRRI sendRRI(serverBuff, memReg, protDomain, clientId->qp);
     sendRRI.Execute();
-    //WaitForCompletion();
     strcpy(serverBuff, "HellO worlD This is server's buff!");
 
-    //PostRDMAWrSend rdmaSend((uint64_t) serverBuff, 256, memReg->lkey, clientId->qp,
-    //                        info->addr, info->rKey);
-    //rdmaSend.Execute();
-
-
-
-
     WaitForCompletion();
-    sleep(1);
-
   }
 };
 

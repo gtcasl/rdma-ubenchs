@@ -187,10 +187,11 @@ public:
     SendRRI sendRRI(recvBuf, memReg, protDomain, clientId->qp);
     sendRRI.Execute();
 
-    sleep(1);
+    sleep(1); // doesn't work without this, probably missing something.
 
     std::cout << "recv buffer: " << recvBuf << "\n";
     WaitForCompletion();
+
   }
 };
 
@@ -237,8 +238,8 @@ public:
     PostRDMAWrSend rdmaSend((uint64_t) recvBuf, 256, memReg->lkey, clientId->qp,
                             info->addr, info->rKey);
     rdmaSend.Execute(true);
-    sleep(1);
 
+    WaitForCompletion();
     std::cout << "\nrecv buffer: " << recvBuf << "\n";
   }
 
