@@ -148,11 +148,9 @@ public:
                                 IBV_ACCESS_LOCAL_WRITE |
                                 IBV_ACCESS_REMOTE_READ)) != NULL);
 
-    // TODO: should dereg the memReg
-
     // posting before receving RDMA_CM_EVENT_ESTABLISHED, otherwise
     // it fails saying there is no receive posted.
-    PostWrRecv recvWr((uint64_t) info, 256, memReg->lkey, clientId->qp);
+    PostWrRecv recvWr((uint64_t) info, sizeof(RemoteRegInfo), memReg->lkey, clientId->qp);
     recvWr.Execute();
 
     HandleConnectionEstablished();
@@ -200,19 +198,11 @@ public:
     HandleConnectRequest();
 
     HandleConnectionEstablished();
-    strcpy(serverBuff, "HellO worlD This is server's buff!");
 
-    assert((memReg = ibv_reg_mr(protDomain, (void *) serverBuff, 256,
-                                IBV_ACCESS_REMOTE_WRITE |
-                                IBV_ACCESS_LOCAL_WRITE |
-                                IBV_ACCESS_REMOTE_READ)) != NULL);
-
-    // send the RRI
-    SendRRI sendRRI(serverBuff, memReg, protDomain, clientId->qp);
-    sendRRI.Execute();
+    SendTDRdma sendRdma(protDomain, clientId->qp, 32);
+    sendRdma.Execute();
 
     WaitForCompletion();
-    check_z(ibv_dereg_mr(memReg));
     HandleDisconnect();
   }
 };

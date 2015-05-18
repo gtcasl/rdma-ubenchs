@@ -210,7 +210,11 @@ public:
     WaitForCompletion();
 
     timer_end(t0);
-    std::cout << "\nrecv buffer: " << recvBuf << "\n";
+
+    for (unsigned i = 0; i < 32; ++i) {
+      TestData *entry = (TestData *) (recvBuf + i * sizeof(TestData));
+      D(std::cout << "entry " << i << " key " << entry->key << "\n");
+    }
 
     rdma_disconnect(clientId);
   }

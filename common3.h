@@ -222,14 +222,16 @@ struct TestData {
 };
 
 class SendTD {
+public:
   ibv_mr *mr;
   TestData *data;
   ibv_qp *qp;
+  ibv_pd *protDomain;
   unsigned numEntries;
 
 public:
   SendTD(ibv_pd *protDomain, ibv_qp *qp, unsigned numEntries)
-    : mr(NULL), data(NULL), qp(qp), numEntries(numEntries) {
+    : mr(NULL), data(NULL), qp(qp), protDomain(protDomain), numEntries(numEntries) {
     assert(protDomain != NULL);
     assert(qp != NULL);
 
@@ -256,9 +258,22 @@ public:
     ibv_dereg_mr(mr);
   }
 
-  void Execute() {
+  virtual void Execute() {
     PostWrSend send((uint64_t) data, sizeof(TestData) * numEntries, mr->lkey, qp);
     send.Execute();
+  }
+};
+
+class SendTDRdma : public SendTD {
+public:
+  SendTDRdma(ibv_pd *protDomain, ibv_qp *qp, unsigned numEntries)
+    : SendTD(protDomain, qp, numEntries) {
+
+  }
+
+  void Execute() override {
+    SendRRI sendRRI(data, mr, protDomain, qp);
+    sendRRI.Execute();
   }
 };
 
