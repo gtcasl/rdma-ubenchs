@@ -127,8 +127,14 @@ public:
                                 IBV_ACCESS_REMOTE_READ)) != NULL);
 
     HandleConnectionEstablished();
+
+    auto t0 = timer_start();
+
     SendWorkRequest();
     WaitForCompletion();
+
+    timer_end(t0);
+
     HandleDisconnect();
   }
 };
