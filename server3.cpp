@@ -51,15 +51,6 @@ protected:
     rdma_ack_cm_event(event);
   }
 
-  void SendWorkRequest() {
-    assert(serverBuff != NULL);
-    assert(memReg != NULL);
-    assert(clientId != NULL);
-
-    PostWrSend send((uint64_t) serverBuff, strlen(serverBuff) + 1, memReg->lkey, clientId->qp);
-    send.Execute();
-  }
-
   void HandleDisconnect() {
     assert(event != NULL);
     D(std::cerr << "HandleDisconnect\n");
@@ -112,7 +103,6 @@ public:
 
     rdma_destroy_id(serverId);
     rdma_destroy_event_channel(eventChannel);
-
   }
 
   virtual void Start() {
@@ -120,21 +110,16 @@ public:
     assert(serverId != NULL);
 
     HandleConnectRequest();
-
-    assert((memReg = ibv_reg_mr(protDomain, (void *) serverBuff, 256,
-                                IBV_ACCESS_REMOTE_WRITE |
-                                IBV_ACCESS_LOCAL_WRITE |
-                                IBV_ACCESS_REMOTE_READ)) != NULL);
-
     HandleConnectionEstablished();
 
-    auto t0 = timer_start();
+    SendTD send(protDomain, clientId->qp, 32);
 
-    SendWorkRequest();
+    auto t0 = timer_start();
+    send.Execute();
+
     WaitForCompletion();
 
     timer_end(t0);
-
     HandleDisconnect();
   }
 };

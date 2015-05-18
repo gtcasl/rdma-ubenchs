@@ -205,6 +205,7 @@ public:
 
   ~SendRRI() {
     delete info;
+    ibv_dereg_mr(mr);
   }
 
   void Execute() {
@@ -213,6 +214,51 @@ public:
 
     D(std::cerr << "Sent addr=" << std::hex << info->addr << "\n");
     D(std::cerr << "Sent rkey=" << std::dec << info->rKey << "\n");
+  }
+};
+
+struct TestData {
+  uint64_t key;
+};
+
+class SendTD {
+  ibv_mr *mr;
+  TestData *data;
+  ibv_qp *qp;
+  unsigned numEntries;
+
+public:
+  SendTD(ibv_pd *protDomain, ibv_qp *qp, unsigned numEntries)
+    : mr(NULL), data(NULL), qp(qp), numEntries(numEntries) {
+    assert(protDomain != NULL);
+    assert(qp != NULL);
+
+    data = new TestData[numEntries];
+
+    for (unsigned i = 0, e = numEntries / 2; i < e; ++i) {
+      data[i].key = 1;
+    }
+
+    for (unsigned i = numEntries / 2; i < numEntries; ++i) {
+      data[i].key = 2;
+    }
+
+    for (unsigned i = 0; i < numEntries; ++i) {
+      D(std::cout << "entry " << i << " key " << data[i].key << "\n");
+    }
+
+    check_nn(mr = ibv_reg_mr(protDomain, (void *) data, sizeof(TestData) * numEntries,
+                            IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ));
+  }
+
+  ~SendTD() {
+    delete[] data;
+    ibv_dereg_mr(mr);
+  }
+
+  void Execute() {
+    PostWrSend send((uint64_t) data, sizeof(TestData) * numEntries, mr->lkey, qp);
+    send.Execute();
   }
 };
 

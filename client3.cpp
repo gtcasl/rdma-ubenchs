@@ -118,10 +118,14 @@ public:
     Setup();
     ReceiveWR();
     WaitForCompletion();
-    printf("data received: %s\n", recvBuf);
+
+    for (unsigned i = 0; i < 32; ++i) {
+      TestData *entry = (TestData *) (recvBuf + i * sizeof(TestData));
+      D(std::cout << "entry " << i << " key " << entry->key << "\n");
+    }
+
     rdma_disconnect(clientId);
   }
-
 };
 
 class ClientSWrites : Client {
