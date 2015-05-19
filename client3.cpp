@@ -58,13 +58,10 @@ protected:
     assert(rdma_create_qp(clientId, protDomain, &qpAttr) == 0);
   }
 
-  void ReceiveWR() {
-    assert(recvBuf != NULL);
-    assert(memReg != NULL);
-    assert(clientId->qp != NULL);
-
-    PostWrRecv recvWr((uint64_t) recvBuf, 256, memReg->lkey, clientId->qp);
-    recvWr.Execute();
+  void Connect() {
+    assert(eventChannel != NULL);
+    assert(event != NULL);
+    assert(clientId != NULL);
 
     assert(rdma_connect(clientId, &connParams) == 0);
     assert(rdma_get_cm_event(eventChannel, &event) == 0);
@@ -109,17 +106,22 @@ public:
     rdma_destroy_event_channel(eventChannel);
   }
 
-  virtual void Start() {
+  virtual void Start(uint32_t entries) {
     assert(eventChannel != NULL);
     assert(clientId != NULL);
 
     HandleAddrResolved();
     HandleRouteResolved();
     Setup();
-    ReceiveWR();
+
+    PostWrRecv recvWr((uint64_t) recvBuf, entries * sizeof(TestData),
+                      memReg->lkey, clientId->qp);
+    recvWr.Execute();
+
+    Connect();
     WaitForCompletion();
 
-    for (unsigned i = 0; i < 32; ++i) {
+    for (unsigned i = 0; i < entries; ++i) {
       TestData *entry = (TestData *) (recvBuf + i * sizeof(TestData));
       D(std::cout << "entry " << i << " key " << entry->key << "\n");
     }
@@ -136,7 +138,7 @@ public:
   ~ClientSWrites() {
   }
 
-  void Start() override {
+  void Start(uint32_t entries) override {
     assert(eventChannel != NULL);
     assert(clientId != NULL);
 
@@ -173,7 +175,7 @@ public:
     delete info;
   }
 
-  void Start() override {
+  void Start(uint32_t entries) override {
     assert(eventChannel != NULL);
     assert(clientId != NULL);
 
@@ -204,14 +206,14 @@ public:
     auto t0 = timer_start();
 
     // issue RDMA read
-    PostRDMAWrSend rdmaSend((uint64_t) recvBuf, 256, memReg->lkey, clientId->qp,
+    PostRDMAWrSend rdmaSend((uint64_t) recvBuf, entries * sizeof(TestData), memReg->lkey, clientId->qp,
                             info->addr, info->rKey);
     rdmaSend.Execute(true);
     WaitForCompletion();
 
     timer_end(t0);
 
-    for (unsigned i = 0; i < 32; ++i) {
+    for (unsigned i = 0; i < entries; ++i) {
       TestData *entry = (TestData *) (recvBuf + i * sizeof(TestData));
       D(std::cout << "entry " << i << " key " << entry->key << "\n");
     }
@@ -221,26 +223,17 @@ public:
 };
 
 int main(int argc, char *argv[]) {
-  int setting = parse_cl(argc, argv);
+  opts opt = parse_cl(argc, argv);
 
-  switch(setting) {
-    case 1: // client reads
-    {
-      ClientCReads client;
-      client.Start();
-      break;
-    }
-    case 2: // server writes
-    {
-      ClientSWrites client;
-      client.Start();
-      break;
-    }
-    default:
-    {
-      Client client;
-      client.Start();
-    }
+  if (opt.read) {
+    ClientCReads client;
+    client.Start(opt.entries);
+  } else if (opt.write) {
+    ClientSWrites client;
+    client.Start(opt.entries);
+  } else {
+    Client client;
+    client.Start(opt.entries);
   }
 
   return 0;

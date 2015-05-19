@@ -105,14 +105,14 @@ public:
     rdma_destroy_event_channel(eventChannel);
   }
 
-  virtual void Start() {
+  virtual void Start(uint32_t entries) {
     assert(eventChannel != NULL);
     assert(serverId != NULL);
 
     HandleConnectRequest();
     HandleConnectionEstablished();
 
-    SendTD send(protDomain, clientId->qp, 32);
+    SendTD send(protDomain, clientId->qp, entries);
 
     auto t0 = timer_start();
     send.Execute();
@@ -137,7 +137,7 @@ public:
     delete info;
   }
 
-  void Start() override {
+  void Start(uint32_t entries) override {
     assert(eventChannel != NULL);
     assert(serverId != NULL);
 
@@ -181,8 +181,6 @@ public:
 };
 
 class ServerCReads : Server {
-  RemoteRegInfo *info;
-
 public:
 
   ServerCReads() {
@@ -191,7 +189,7 @@ public:
   ~ServerCReads() {
   }
 
-  void Start() override {
+  void Start(uint32_t entries) override {
     assert(eventChannel != NULL);
     assert(serverId != NULL);
 
@@ -199,7 +197,7 @@ public:
 
     HandleConnectionEstablished();
 
-    SendTDRdma sendRdma(protDomain, clientId->qp, 32);
+    SendTDRdma sendRdma(protDomain, clientId->qp, entries);
     sendRdma.Execute();
 
     WaitForCompletion();
@@ -208,26 +206,17 @@ public:
 };
 
 int main(int argc, char *argv[]) {
-  int setting = parse_cl(argc, argv);
+  opts opt = parse_cl(argc, argv);
 
-  switch(setting) {
-    case 1: // client reads
-    {
-      ServerCReads server;
-      server.Start();
-      break;
-    }
-    case 2: // server writes
-    {
-      ServerSWrites server;
-      server.Start();
-      break;
-    }
-    default:
-    {
-      Server server;
-      server.Start();
-    }
+  if (opt.read) {
+    ServerCReads server;
+    server.Start(opt.entries);
+  } else if (opt.write) {
+    ServerSWrites server;
+    server.Start(opt.entries);
+  } else {
+    Server server;
+    server.Start(opt.entries);
   }
 
   return 0;

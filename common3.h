@@ -5,6 +5,8 @@
 #include <stdexcept>
 #include <iostream>
 #include <chrono>
+#include <sstream>
+#include <string>
 
 #ifndef REL
 #define D(x) x
@@ -16,14 +18,17 @@ typedef std::chrono::high_resolution_clock Time;
 typedef std::chrono::nanoseconds nanosec;
 typedef std::chrono::duration<float> dsec;
 
+inline void check(bool b, const std::string &msg) {
+  if (!b)
+    throw std::runtime_error(msg);
+}
+
 inline void check_z(int t) {
-  if (t != 0)
-    throw std::runtime_error("check_z");
+  check((t == 0), "check_z");
 }
 
 inline void check_nn(void *t) {
-  if (t == NULL)
-    throw std::runtime_error("check_nn");
+  check((t != NULL), "check_nn");
 }
 
 inline Time::time_point timer_start() {
@@ -277,25 +282,49 @@ public:
   }
 };
 
-int parse_cl(int argc, char *argv[]) {
+struct opts {
+  bool read;
+  bool write;
+  uint32_t entries;
+};
+
+opts parse_cl(int argc, char *argv[]) {
+  opts opt = {};
+
   while (1) {
-    int c = getopt(argc, argv, "rw");
+    int c = getopt(argc, argv, "rwe:");
 
     if (c == -1) {
-      return 0;
+      break;
     }
 
     switch(c) {
     case 'r':
-      return 1; // client reads
+      opt.read = true; // client reads
       break;
     case 'w':
-      return 2; // server writes
+      opt.write = true; // server writes
       break;
+    case 'e':
+    {
+      std::string str(optarg);
+      std::stringstream sstm(str);
+      sstm >> opt.entries;
+      break;
+    }
     default:
       std::cerr << "Invalid option" << "\n";
+      check_z(1);
     }
   }
+
+  if (opt.read || opt.write) {
+    check((opt.entries != 0), "must provide number of entries");
+  }
+
+  D(std::cout << "number of entries=" << opt.entries << "\n");
+
+  return opt;
 }
 
 #endif
