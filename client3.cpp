@@ -44,13 +44,7 @@ protected:
 
   void Setup() {
     assert(clientId != NULL);
-
     assert((protDomain = ibv_alloc_pd(clientId->verbs)) != NULL);
-    assert((memReg = ibv_reg_mr(protDomain, (void *) recvBuf, 256,
-                                IBV_ACCESS_REMOTE_WRITE |
-                                IBV_ACCESS_LOCAL_WRITE |
-                                IBV_ACCESS_REMOTE_READ)) != NULL);
-
     assert((compQueue = ibv_create_cq(clientId->verbs, 32, 0, 0, 0)) != NULL);
     qpAttr.send_cq = qpAttr.recv_cq = compQueue;
 
@@ -72,10 +66,6 @@ protected:
 
 public:
   Client() : clientId(NULL), recvBuf(NULL) {
-
-    recvBuf = (char *) malloc(sizeof(char) * 256);
-    memset(recvBuf, '\0', 256);
-
     sin = {};
     sin.sin_family = AF_INET;
     sin.sin_port = htons(port);
@@ -86,21 +76,15 @@ public:
     check_z(rdma_resolve_addr(clientId, NULL, (sockaddr *) &sin, 2000));
   }
 
-  ~Client() {
+  virtual ~Client() {
     if (clientId)
       rdma_destroy_qp(clientId);
-
-    if (memReg)
-      ibv_dereg_mr(memReg);
 
     if (compQueue)
       ibv_destroy_cq(compQueue);
 
     if (protDomain)
       ibv_dealloc_pd(protDomain);
-
-    if (recvBuf)
-      free(recvBuf);
 
     rdma_destroy_id(clientId);
     rdma_destroy_event_channel(eventChannel);
@@ -114,6 +98,14 @@ public:
     HandleRouteResolved();
     Setup();
 
+    recvBuf = (char *) malloc(entries * sizeof(TestData));
+    memset(recvBuf, '\0', entries * sizeof(TestData));
+
+    check_nn(memReg = ibv_reg_mr(protDomain, (void *) recvBuf, entries * sizeof(TestData),
+                                IBV_ACCESS_REMOTE_WRITE |
+                                IBV_ACCESS_LOCAL_WRITE |
+                                IBV_ACCESS_REMOTE_READ));
+
     PostWrRecv recvWr((uint64_t) recvBuf, entries * sizeof(TestData),
                       memReg->lkey, clientId->qp);
     recvWr.Execute();
@@ -121,11 +113,13 @@ public:
     Connect();
     WaitForCompletion();
 
-    for (unsigned i = 0; i < entries; ++i) {
-      TestData *entry = (TestData *) (recvBuf + i * sizeof(TestData));
-      D(std::cout << "entry " << i << " key " << entry->key << "\n");
-    }
+    //for (unsigned i = 0; i < entries; ++i) {
+    //  TestData *entry = (TestData *) (recvBuf + i * sizeof(TestData));
+    //  D(std::cout << "entry " << i << " key " << entry->key << "\n");
+    //}
 
+    free(recvBuf);
+    ibv_dereg_mr(memReg);
     rdma_disconnect(clientId);
   }
 };
@@ -146,6 +140,9 @@ public:
     HandleRouteResolved();
     Setup();
 
+    recvBuf = (char *) malloc(entries * sizeof(TestData));
+    memset(recvBuf, '\0', entries * sizeof(TestData));
+
     assert(rdma_connect(clientId, &connParams) == 0);
     assert(rdma_get_cm_event(eventChannel, &event) == 0);
     assert(event->event == RDMA_CM_EVENT_ESTABLISHED);
@@ -159,6 +156,7 @@ public:
 
     std::cout << "recv buffer: " << recvBuf << "\n";
     WaitForCompletion();
+    free(recvBuf);
     rdma_disconnect(clientId);
   }
 };
@@ -182,6 +180,14 @@ public:
     HandleAddrResolved();
     HandleRouteResolved();
     Setup();
+
+    recvBuf = (char *) malloc(entries * sizeof(TestData));
+    memset(recvBuf, '\0', entries * sizeof(TestData));
+
+    assert((memReg = ibv_reg_mr(protDomain, (void *) recvBuf, entries * sizeof(TestData),
+                                IBV_ACCESS_REMOTE_WRITE |
+                                IBV_ACCESS_LOCAL_WRITE |
+                                IBV_ACCESS_REMOTE_READ)) != NULL);
 
     // receive RRI
     ibv_mr *mrInfo;
@@ -213,11 +219,14 @@ public:
 
     timer_end(t0);
 
-    for (unsigned i = 0; i < entries; ++i) {
-      TestData *entry = (TestData *) (recvBuf + i * sizeof(TestData));
-      D(std::cout << "entry " << i << " key " << entry->key << "\n");
-    }
+    //for (unsigned i = 0; i < entries; ++i) {
+    //  TestData *entry = (TestData *) (recvBuf + i * sizeof(TestData));
+    //  D(std::cout << "entry " << i << " key " << entry->key << "\n");
+    //}
 
+    free(recvBuf);
+    ibv_dereg_mr(mrInfo);
+    ibv_dereg_mr(memReg);
     rdma_disconnect(clientId);
   }
 };

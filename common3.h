@@ -77,11 +77,13 @@ public:
 
     while ((ret = ibv_poll_cq(compQueue, 1, &workComp)) == 0) {}
 
-    if (ret < 0)
-      D(std::cerr << "ibv_poll_cq returned " << ret << "\n");
+    check(ret >= 0, "ibv_poll_cq didn't return 0");
 
-    if (workComp.status != IBV_WC_SUCCESS)
-      D(std::cerr << "not IBV_WC_SUCCESS: " << ret << "\n");
+    if (workComp.status != IBV_WC_SUCCESS) {
+      std::ostringstream sstm;
+      sstm << "status was not IBV_WC_SUCCESS, it was " << workComp.status;
+      check(false, sstm.str());
+    }
   }
 };
 
@@ -250,9 +252,9 @@ public:
       data[i].key = 2;
     }
 
-    for (unsigned i = 0; i < numEntries; ++i) {
-      D(std::cout << "entry " << i << " key " << data[i].key << "\n");
-    }
+    //for (unsigned i = 0; i < numEntries; ++i) {
+    //  D(std::cout << "entry " << i << " key " << data[i].key << "\n");
+    //}
 
     check_nn(mr = ibv_reg_mr(protDomain, (void *) data, sizeof(TestData) * numEntries,
                             IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ));
