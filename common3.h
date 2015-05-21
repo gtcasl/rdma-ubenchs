@@ -15,7 +15,7 @@
 #endif
 
 typedef std::chrono::high_resolution_clock Time;
-typedef std::chrono::nanoseconds nanosec;
+typedef std::chrono::microseconds microsec;
 typedef std::chrono::duration<float> dsec;
 
 inline void check(bool b, const std::string &msg) {
@@ -38,8 +38,8 @@ inline Time::time_point timer_start() {
 inline void timer_end(const Time::time_point &t0) {
   Time::time_point t1 = Time::now();
   dsec duration = t1 - t0;
-  nanosec res = std::chrono::duration_cast<nanosec>(duration);
-  std::cout << "elapsed time: " << res.count() << " ns\n";
+  microsec res = std::chrono::duration_cast<microsec>(duration);
+  std::cout << "elapsed time: " << res.count() << " us\n";
 }
 
 class RDMAPeer {
