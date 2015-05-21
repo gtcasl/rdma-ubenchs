@@ -162,17 +162,7 @@ public:
 };
 
 class ClientCReads : Client {
-  RemoteRegInfo *info;
 public:
-
-  ClientCReads() {
-    info = new RemoteRegInfo();
-  }
-
-  ~ClientCReads() {
-    delete info;
-  }
-
   void Start(uint32_t entries) override {
     assert(eventChannel != NULL);
     assert(clientId != NULL);
@@ -190,14 +180,8 @@ public:
                                 IBV_ACCESS_REMOTE_READ)) != NULL);
 
     // receive RRI
-    ibv_mr *mrInfo;
-    check_nn(mrInfo = ibv_reg_mr(protDomain, (void *) info, sizeof(RemoteRegInfo),
-                                IBV_ACCESS_REMOTE_WRITE |
-                                IBV_ACCESS_LOCAL_WRITE |
-                                IBV_ACCESS_REMOTE_READ));
-    PostWrRecv recvWr((uint64_t) info, sizeof(RemoteRegInfo),
-                      mrInfo->lkey, clientId->qp);
-    recvWr.Execute();
+    RecvRRI recvRRI(protDomain, clientId->qp);
+    recvRRI.Execute();
 
     assert(rdma_connect(clientId, &connParams) == 0);
     assert(rdma_get_cm_event(eventChannel, &event) == 0);
@@ -206,14 +190,14 @@ public:
     rdma_ack_cm_event(event);
 
     WaitForCompletion();
-    D(std::cout << "received addr=" << std::hex << info->addr << "\n");
-    D(std::cout << "received rkey=" << std::dec << info->rKey << "\n");
+    D(std::cout << "received addr=" << std::hex << recvRRI.info->addr << "\n");
+    D(std::cout << "received rkey=" << std::dec << recvRRI.info->rKey << "\n");
 
     auto t0 = timer_start();
 
     // issue RDMA read
     PostRDMAWrSend rdmaSend((uint64_t) recvBuf, entries * sizeof(TestData), memReg->lkey, clientId->qp,
-                            info->addr, info->rKey);
+                            recvRRI.info->addr, recvRRI.info->rKey);
     rdmaSend.Execute(true);
     WaitForCompletion();
 
@@ -225,7 +209,6 @@ public:
     //}
 
     free(recvBuf);
-    ibv_dereg_mr(mrInfo);
     ibv_dereg_mr(memReg);
     rdma_disconnect(clientId);
   }

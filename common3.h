@@ -224,6 +224,34 @@ public:
   }
 };
 
+class RecvRRI {
+  ibv_mr *mr;
+  ibv_qp *qp;
+
+public:
+  RemoteRegInfo *info;
+
+  RecvRRI(ibv_pd *protDom, ibv_qp *qp) : qp(qp) {
+    assert(protDom != NULL);
+    assert(qp != NULL);
+
+    info = new RemoteRegInfo();
+
+    check_nn(mr = ibv_reg_mr(protDom, (void *) info, sizeof(RemoteRegInfo),
+                            IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ));
+  }
+
+  ~RecvRRI() {
+    delete info;
+    ibv_dereg_mr(mr);
+  }
+
+  void Execute() {
+    PostWrRecv recv((uint64_t) info, sizeof(RemoteRegInfo), mr->lkey, qp);
+    recv.Execute();
+  }
+};
+
 struct TestData {
   uint64_t key;
 };
