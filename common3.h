@@ -7,6 +7,7 @@
 #include <chrono>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #ifndef REL
 #define D(x) x
@@ -17,6 +18,26 @@
 typedef std::chrono::high_resolution_clock Time;
 typedef std::chrono::microseconds microsec;
 typedef std::chrono::duration<float> dsec;
+
+struct TestData {
+  uint64_t key;
+};
+
+struct Sge {
+  ibv_sge sge;
+
+  Sge(uint64_t addr, uint32_t length, uint32_t lkey) {
+    sge = {};
+    sge.addr = addr;
+    sge.length = length;
+    sge.lkey = lkey;
+  }
+};
+
+struct RemoteRegInfo {
+  uint64_t addr;
+  uint32_t rKey;
+};
 
 inline void check(bool b, const std::string &msg) {
   if (!b)
@@ -40,6 +61,20 @@ inline void timer_end(const Time::time_point &t0) {
   dsec duration = t1 - t0;
   microsec res = std::chrono::duration_cast<microsec>(duration);
   std::cout << "elapsed time: " << res.count() << " us\n";
+}
+
+
+inline std::vector<TestData *> filter_data(uint64_t key, char *buf, uint32_t entries) {
+  std::vector<TestData *> result;
+
+  for (unsigned i = 0; i < entries; ++i) {
+    TestData *entry = (TestData *) (buf + i * sizeof(TestData));
+    if (key == entry->key) {
+      result.push_back(entry);
+    }
+  }
+
+  return result;
 }
 
 class RDMAPeer {
@@ -87,16 +122,6 @@ public:
   }
 };
 
-struct Sge {
-  ibv_sge sge;
-
-  Sge(uint64_t addr, uint32_t length, uint32_t lkey) {
-    sge = {};
-    sge.addr = addr;
-    sge.length = length;
-    sge.lkey = lkey;
-  }
-};
 
 class PostRDMAWrSend {
   ibv_qp *queuePair;
@@ -184,10 +209,6 @@ public:
   }
 };
 
-struct RemoteRegInfo {
-  uint64_t addr;
-  uint32_t rKey;
-};
 
 class SendRRI {
   ibv_mr *mr;
@@ -252,10 +273,6 @@ public:
   }
 };
 
-struct TestData {
-  uint64_t key;
-};
-
 class SendTD {
 public:
   ibv_mr *mr;
@@ -264,7 +281,6 @@ public:
   ibv_pd *protDomain;
   unsigned numEntries;
 
-public:
   SendTD(ibv_pd *protDomain, ibv_qp *qp, unsigned numEntries)
     : mr(NULL), data(NULL), qp(qp), protDomain(protDomain), numEntries(numEntries) {
     assert(protDomain != NULL);
@@ -299,6 +315,48 @@ public:
   }
 };
 
+class SendTDFiltered : SendTD {
+  ibv_mr *MrFiltered;
+  TestData *FData;
+
+public:
+  SendTDFiltered(ibv_pd *protDomain, ibv_qp *qp, unsigned numEntries)
+    : SendTD(protDomain, qp, numEntries), MrFiltered(nullptr), FData(nullptr) {
+  }
+
+  ~SendTDFiltered() {
+    delete[] FData;
+    ibv_dereg_mr(MrFiltered);
+  }
+
+  void filter(uint64_t key) {
+    std::vector<TestData> FilteredData;
+
+    D(std::cout << "Filtering data\n");
+
+    for (unsigned i = 0; i < numEntries; ++i) {
+      if (data[i].key == key) {
+        FilteredData.push_back(data[i]);
+      }
+    }
+
+    numEntries = FilteredData.size();
+    FData = new TestData[numEntries];
+    check_nn(MrFiltered = ibv_reg_mr(protDomain, (void *) FData, sizeof(TestData) * numEntries,
+                            IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ));
+
+    std::copy(FilteredData.begin(), FilteredData.end(), FData);
+  }
+
+  void Execute() override {
+    assert(FData != nullptr);
+    assert(MrFiltered != nullptr);
+
+    PostWrSend send((uint64_t) FData, sizeof(TestData) * numEntries, MrFiltered->lkey, qp);
+    send.Execute();
+  }
+};
+
 class SendTDRdma : public SendTD {
 public:
   SendTDRdma(ibv_pd *protDomain, ibv_qp *qp, unsigned numEntries)
@@ -315,6 +373,7 @@ public:
 struct opts {
   bool read;
   bool write;
+  bool filtered;
   uint32_t entries;
 };
 
@@ -322,7 +381,7 @@ opts parse_cl(int argc, char *argv[]) {
   opts opt = {};
 
   while (1) {
-    int c = getopt(argc, argv, "rwe:");
+    int c = getopt(argc, argv, "rwfe:");
 
     if (c == -1) {
       break;
@@ -334,6 +393,9 @@ opts parse_cl(int argc, char *argv[]) {
       break;
     case 'w':
       opt.write = true; // server writes
+      break;
+    case 'f':
+      opt.filtered = true;
       break;
     case 'e':
     {

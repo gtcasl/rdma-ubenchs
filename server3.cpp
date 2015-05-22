@@ -124,6 +124,30 @@ public:
   }
 };
 
+// filtered server.
+class FServer : Server {
+public:
+  // send only relevant data.
+  void Start(uint32_t entries) override {
+    assert(eventChannel != NULL);
+    assert(serverId != NULL);
+
+    HandleConnectRequest();
+    HandleConnectionEstablished();
+
+    SendTDFiltered send(protDomain, clientId->qp, entries);
+    send.filter(1);
+
+    auto t0 = timer_start();
+    send.Execute();
+
+    WaitForCompletion();
+
+    timer_end(t0);
+    HandleDisconnect();
+  }
+};
+
 class ServerSWrites : Server {
   RemoteRegInfo *info;
 
@@ -214,7 +238,10 @@ int main(int argc, char *argv[]) {
   } else if (opt.write) {
     ServerSWrites server;
     server.Start(opt.entries);
-  } else {
+  } else if (opt.filtered) { // filtered server
+    FServer server;
+    server.Start(opt.entries);
+  } else { // unfiltered server
     Server server;
     server.Start(opt.entries);
   }

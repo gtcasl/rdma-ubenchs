@@ -90,6 +90,9 @@ public:
     rdma_destroy_event_channel(eventChannel);
   }
 
+  // no filtering is performed at the server. we get the complete buffer.
+  // the server knows there is an incoming request because we issue a connect.
+  // we have to filter once we get the complete data.
   virtual void Start(uint32_t entries) {
     assert(eventChannel != NULL);
     assert(clientId != NULL);
@@ -113,14 +116,57 @@ public:
     Connect();
     WaitForCompletion();
 
-    //for (unsigned i = 0; i < entries; ++i) {
-    //  TestData *entry = (TestData *) (recvBuf + i * sizeof(TestData));
-    //  D(std::cout << "entry " << i << " key " << entry->key << "\n");
-    //}
+    // filter in the client, server sent everything in buffer
+    std::vector<TestData *> filtered = filter_data(1, recvBuf, entries);
+
+    for (std::vector<TestData *>::const_iterator i = filtered.begin(),
+         e = filtered.end(); i < e; ++i) {
+      D(std::cout << "key " << (*i)->key << "\n");
+    }
 
     free(recvBuf);
     ibv_dereg_mr(memReg);
     rdma_disconnect(clientId);
+  }
+};
+
+// client for send/recv, receives filtered data
+class ClientFiltered : Client {
+public:
+  virtual void Start(uint32_t entries) {
+    assert(eventChannel != NULL);
+    assert(clientId != NULL);
+
+    HandleAddrResolved();
+    HandleRouteResolved();
+    Setup();
+
+    recvBuf = (char *) malloc(entries * sizeof(TestData));
+    memset(recvBuf, '\0', entries * sizeof(TestData));
+
+    check_nn(memReg = ibv_reg_mr(protDomain, (void *) recvBuf, entries * sizeof(TestData),
+                                IBV_ACCESS_REMOTE_WRITE |
+                                IBV_ACCESS_LOCAL_WRITE |
+                                IBV_ACCESS_REMOTE_READ));
+
+    PostWrRecv recvWr((uint64_t) recvBuf, entries * sizeof(TestData),
+                      memReg->lkey, clientId->qp);
+    recvWr.Execute();
+
+    Connect();
+    WaitForCompletion();
+
+    D(std::cout << "Received filtered data\n");
+
+    for (unsigned i = 0; i < entries; ++i) {
+      TestData *entry = (TestData *) (recvBuf + i * sizeof(TestData));
+      D(std::cout << "entry " << i << " key " << entry->key << "\n");
+    }
+
+    free(recvBuf);
+    ibv_dereg_mr(memReg);
+    rdma_disconnect(clientId);
+
   }
 };
 
@@ -223,7 +269,10 @@ int main(int argc, char *argv[]) {
   } else if (opt.write) {
     ClientSWrites client;
     client.Start(opt.entries);
-  } else {
+  } else if (opt.filtered) { // filtered client
+    ClientFiltered client;
+    client.Start(opt.entries);
+  } else { // unfiltered client
     Client client;
     client.Start(opt.entries);
   }
