@@ -137,6 +137,8 @@ public:
     assert(eventChannel != NULL);
     assert(clientId != NULL);
 
+    D(std::cout << "Send/recv filtered data client\n");
+
     HandleAddrResolved();
     HandleRouteResolved();
     Setup();
@@ -155,8 +157,6 @@ public:
 
     Connect();
     WaitForCompletion();
-
-    D(std::cout << "Received filtered data\n");
 
     for (unsigned i = 0; i < entries; ++i) {
       TestData *entry = (TestData *) (recvBuf + i * sizeof(TestData));
@@ -260,12 +260,73 @@ public:
   }
 };
 
+class ClientCReadsFiltered : Client {
+public:
+  void Start(uint32_t entries) override {
+    assert(eventChannel != NULL);
+    assert(clientId != NULL);
+
+    D(std::cout << "RDMA filtered client (filtering occurs at server)\n");
+
+    HandleAddrResolved();
+    HandleRouteResolved();
+    Setup();
+
+    recvBuf = (char *) malloc(entries * sizeof(TestData));
+    memset(recvBuf, '\0', entries * sizeof(TestData));
+
+    assert((memReg = ibv_reg_mr(protDomain, (void *) recvBuf, entries * sizeof(TestData),
+                                IBV_ACCESS_REMOTE_WRITE |
+                                IBV_ACCESS_LOCAL_WRITE |
+                                IBV_ACCESS_REMOTE_READ)) != NULL);
+
+    // receive RRI
+    RecvRRI recvRRI(protDomain, clientId->qp);
+    recvRRI.Execute();
+
+    assert(rdma_connect(clientId, &connParams) == 0);
+    assert(rdma_get_cm_event(eventChannel, &event) == 0);
+    assert(event->event == RDMA_CM_EVENT_ESTABLISHED);
+
+    rdma_ack_cm_event(event);
+
+    WaitForCompletion();
+    D(std::cout << "received addr=" << std::hex << recvRRI.info->addr << "\n");
+    D(std::cout << "received rkey=" << std::dec << recvRRI.info->rKey << "\n");
+
+    auto t0 = timer_start();
+
+    // issue RDMA read
+    // TODO: fix assumption of entries / 2
+    PostRDMAWrSend rdmaSend((uint64_t) recvBuf, (entries / 2) * sizeof(TestData), memReg->lkey, clientId->qp,
+                            recvRRI.info->addr, recvRRI.info->rKey);
+    rdmaSend.Execute(true);
+    WaitForCompletion();
+
+    timer_end(t0);
+
+    for (unsigned i = 0; i < entries; ++i) {
+      TestData *entry = (TestData *) (recvBuf + i * sizeof(TestData));
+      D(std::cout << "entry " << i << " key " << entry->key << "\n");
+    }
+
+    free(recvBuf);
+    ibv_dereg_mr(memReg);
+    rdma_disconnect(clientId);
+  }
+};
+
 int main(int argc, char *argv[]) {
   opts opt = parse_cl(argc, argv);
 
   if (opt.read) {
-    ClientCReads client;
-    client.Start(opt.entries);
+    if (opt.filtered) { // filtered rdma
+      ClientCReadsFiltered client;
+      client.Start(opt.entries);
+    } else { // unfiltered rdma
+      ClientCReads client;
+      client.Start(opt.entries);
+    }
   } else if (opt.write) {
     ClientSWrites client;
     client.Start(opt.entries);

@@ -116,7 +116,7 @@ public:
 
     if (workComp.status != IBV_WC_SUCCESS) {
       std::ostringstream sstm;
-      sstm << "status was not IBV_WC_SUCCESS, it was " << workComp.status;
+      sstm << "ibv_poll_cq status was not IBV_WC_SUCCESS, it was " << workComp.status;
       check(false, sstm.str());
     }
   }
@@ -366,6 +366,45 @@ public:
 
   void Execute() override {
     SendRRI sendRRI(data, mr, protDomain, qp);
+    sendRRI.Execute();
+  }
+};
+
+class SendTDRdmaFiltered : public SendTD {
+  ibv_mr *MrFiltered;
+  TestData *FData;
+public:
+  SendTDRdmaFiltered(ibv_pd *protDomain, ibv_qp *qp, unsigned numEntries)
+    : SendTD(protDomain, qp, numEntries), MrFiltered(nullptr), FData(nullptr) {
+
+  }
+
+  ~SendTDRdmaFiltered() {
+    delete[] FData;
+    ibv_dereg_mr(MrFiltered);
+  }
+
+  void filter(uint32_t key) {
+    std::vector<TestData> FilteredData;
+
+    D(std::cout << "Filtering data\n");
+
+    for (unsigned i = 0; i < numEntries; ++i) {
+      if (data[i].key == key) {
+        FilteredData.push_back(data[i]);
+      }
+    }
+
+    FData = new TestData[FilteredData.size()];
+    // TODO: fix assumption of numEntries / 2
+    check_nn(MrFiltered = ibv_reg_mr(protDomain, (void *) FData, sizeof(TestData) * (numEntries / 2),
+                            IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ));
+
+    std::copy(FilteredData.begin(), FilteredData.end(), FData);
+  }
+
+  void Execute() override {
+    SendRRI sendRRI(FData, MrFiltered, protDomain, qp);
     sendRRI.Execute();
   }
 };

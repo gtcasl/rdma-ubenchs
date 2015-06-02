@@ -105,7 +105,7 @@ public:
     rdma_destroy_event_channel(eventChannel);
   }
 
-  virtual void Start(uint32_t entries) {
+  virtual void start(uint32_t entries) {
     assert(eventChannel != NULL);
     assert(serverId != NULL);
 
@@ -128,7 +128,7 @@ public:
 class FServer : Server {
 public:
   // send only relevant data.
-  void Start(uint32_t entries) override {
+  void start(uint32_t entries) override {
     assert(eventChannel != NULL);
     assert(serverId != NULL);
 
@@ -161,7 +161,7 @@ public:
     delete info;
   }
 
-  void Start(uint32_t entries) override {
+  void start(uint32_t entries) override {
     assert(eventChannel != NULL);
     assert(serverId != NULL);
 
@@ -213,7 +213,7 @@ public:
   ~ServerCReads() {
   }
 
-  void Start(uint32_t entries) override {
+  void start(uint32_t entries) override {
     assert(eventChannel != NULL);
     assert(serverId != NULL);
 
@@ -229,21 +229,54 @@ public:
   }
 };
 
+class ServCReadsFiltered : Server {
+public:
+
+  ServCReadsFiltered() {
+  }
+
+  ~ServCReadsFiltered() {
+  }
+
+  void start(uint32_t entries) override {
+    assert(eventChannel != NULL);
+    assert(serverId != NULL);
+
+    D(std::cout << "RDMA filtered server (filtering occurs at server)\n");
+
+    HandleConnectRequest();
+
+    HandleConnectionEstablished();
+
+    SendTDRdmaFiltered sendRdma(protDomain, clientId->qp, entries);
+    sendRdma.filter(1);
+    sendRdma.Execute();
+
+    WaitForCompletion();
+    HandleDisconnect();
+  }
+};
+
 int main(int argc, char *argv[]) {
   opts opt = parse_cl(argc, argv);
 
   if (opt.read) {
-    ServerCReads server;
-    server.Start(opt.entries);
+    if (opt.filtered) {
+      ServCReadsFiltered server;
+      server.start(opt.entries);
+    } else {
+      ServerCReads server;
+      server.start(opt.entries);
+    }
   } else if (opt.write) {
     ServerSWrites server;
-    server.Start(opt.entries);
+    server.start(opt.entries);
   } else if (opt.filtered) { // filtered server
     FServer server;
-    server.Start(opt.entries);
+    server.start(opt.entries);
   } else { // unfiltered server
     Server server;
-    server.Start(opt.entries);
+    server.start(opt.entries);
   }
 
   return 0;
