@@ -242,8 +242,7 @@ public:
     rdma_ack_cm_event(event);
 
     WaitForCompletion();
-    D(std::cout << "received addr=" << std::hex << recvRRI.info->addr << "\n");
-    D(std::cout << "received rkey=" << std::dec << recvRRI.info->rKey << "\n");
+    recvRRI.print();
 
     auto t0 = timer_start();
 
@@ -297,8 +296,7 @@ public:
     rdma_ack_cm_event(event);
 
     WaitForCompletion();
-    D(std::cout << "received addr=" << std::hex << recvRRI.info->addr << "\n");
-    D(std::cout << "received rkey=" << std::dec << recvRRI.info->rKey << "\n");
+    recvRRI.print();
 
     auto t0 = timer_start();
 

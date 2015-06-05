@@ -271,6 +271,11 @@ public:
     PostWrRecv recv((uint64_t) info, sizeof(RemoteRegInfo), mr->lkey, qp);
     recv.exec();
   }
+
+  void print() {
+    D(std::cout << "Client addr=" << std::hex << info->addr << std::dec << "\n");
+    D(std::cout << "Client rkey=" << info->rKey << "\n");
+  }
 };
 
 class SendTD {

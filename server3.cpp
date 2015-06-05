@@ -160,34 +160,14 @@ public:
 
     HandleConnectRequest();
 
-    //assert((memReg = ibv_reg_mr(protDomain, (void *) info, sizeof(RemoteRegInfo),
-    //                            IBV_ACCESS_REMOTE_WRITE |
-    //                            IBV_ACCESS_LOCAL_WRITE |
-    //                            IBV_ACCESS_REMOTE_READ)) != NULL);
-
-    // posting before receving RDMA_CM_EVENT_ESTABLISHED, otherwise
-    // it fails saying there is no receive posted.
-    //PostWrRecv recvWr((uint64_t) info, sizeof(RemoteRegInfo), memReg->lkey, clientId->qp);
-    //recvWr.exec();
-
-    char *ServerBuff = (char *) malloc(entries * sizeof(TestData));
-    memset(ServerBuff, 0, entries * sizeof(TestData));
-
     RecvRRI RecvRRI(protDomain, clientId->qp);
     RecvRRI.exec();
 
     HandleConnectionEstablished();
 
-    // now setup the remote memory where we'll be able to write directly
-    assert((memReg = ibv_reg_mr(protDomain, (void *) ServerBuff, entries * sizeof(TestData),
-                                IBV_ACCESS_REMOTE_WRITE |
-                                IBV_ACCESS_LOCAL_WRITE |
-                                IBV_ACCESS_REMOTE_READ)) != NULL);
-
     WaitForCompletion();
 
-    D(std::cerr << "client addr=" << std::hex << RecvRRI.info->addr);
-    D(std::cerr << "\nclient rkey=" << std::dec << RecvRRI.info->rKey);
+    RecvRRI.print();
 
     TestData *Data = new TestData[entries]();
 
@@ -196,8 +176,6 @@ public:
     WriteRdma WriteR(protDomain, clientId->qp, *(RecvRRI.info), entries * sizeof(TestData), Data);
     WriteR.exec();
 
-    check_z(ibv_dereg_mr(memReg));
-    free(ServerBuff);
     HandleDisconnect();
   }
 };
