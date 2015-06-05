@@ -14,7 +14,6 @@ protected:
   rdma_cm_id *serverId;
   rdma_cm_id *clientId;
   ibv_mr *memReg;
-  char *serverBuff;
 
   void HandleConnectRequest() {
     assert(eventChannel != NULL);
@@ -60,7 +59,7 @@ protected:
   }
 
 public:
-  Server() : serverId(NULL), clientId(NULL), memReg(NULL), serverBuff(NULL) {
+  Server() : serverId(NULL), clientId(NULL), memReg(NULL) {
 
     connParams = {};
     connParams.initiator_depth = 1;
@@ -72,9 +71,6 @@ public:
     qpAttr.cap.max_recv_sge = 1;
     qpAttr.cap.max_inline_data = 64;
     qpAttr.qp_type = IBV_QPT_RC;
-
-    serverBuff = (char *) malloc(sizeof(char) * 256);
-    strcpy(serverBuff, "HellO worlD!");
 
     assert((eventChannel = rdma_create_event_channel()) != NULL);
     assert(rdma_create_id(eventChannel, &serverId, NULL, RDMA_PS_TCP) == 0);
@@ -98,9 +94,6 @@ public:
     if (protDomain)
       ibv_dealloc_pd(protDomain);
 
-    if (serverBuff)
-      free(serverBuff);
-
     rdma_destroy_id(serverId);
     rdma_destroy_event_channel(eventChannel);
   }
@@ -115,7 +108,7 @@ public:
     SendTD send(protDomain, clientId->qp, entries);
 
     auto t0 = timer_start();
-    send.Execute();
+    send.exec();
 
     WaitForCompletion();
 
@@ -139,7 +132,7 @@ public:
     send.filter(1);
 
     auto t0 = timer_start();
-    send.Execute();
+    send.exec();
 
     WaitForCompletion();
 
@@ -167,39 +160,44 @@ public:
 
     HandleConnectRequest();
 
-    assert((memReg = ibv_reg_mr(protDomain, (void *) info, sizeof(RemoteRegInfo),
-                                IBV_ACCESS_REMOTE_WRITE |
-                                IBV_ACCESS_LOCAL_WRITE |
-                                IBV_ACCESS_REMOTE_READ)) != NULL);
+    //assert((memReg = ibv_reg_mr(protDomain, (void *) info, sizeof(RemoteRegInfo),
+    //                            IBV_ACCESS_REMOTE_WRITE |
+    //                            IBV_ACCESS_LOCAL_WRITE |
+    //                            IBV_ACCESS_REMOTE_READ)) != NULL);
 
     // posting before receving RDMA_CM_EVENT_ESTABLISHED, otherwise
     // it fails saying there is no receive posted.
-    PostWrRecv recvWr((uint64_t) info, sizeof(RemoteRegInfo), memReg->lkey, clientId->qp);
-    recvWr.Execute();
+    //PostWrRecv recvWr((uint64_t) info, sizeof(RemoteRegInfo), memReg->lkey, clientId->qp);
+    //recvWr.exec();
+
+    char *ServerBuff = (char *) malloc(entries * sizeof(TestData));
+    memset(ServerBuff, 0, entries * sizeof(TestData));
+
+    RecvRRI RecvRRI(protDomain, clientId->qp);
+    RecvRRI.exec();
 
     HandleConnectionEstablished();
 
-    check_z(ibv_dereg_mr(memReg));
     // now setup the remote memory where we'll be able to write directly
-    assert((memReg = ibv_reg_mr(protDomain, (void *) serverBuff, 256,
+    assert((memReg = ibv_reg_mr(protDomain, (void *) ServerBuff, entries * sizeof(TestData),
                                 IBV_ACCESS_REMOTE_WRITE |
                                 IBV_ACCESS_LOCAL_WRITE |
                                 IBV_ACCESS_REMOTE_READ)) != NULL);
 
-    D(std::cerr << "client addr=" << std::hex << info->addr);
-    D(std::cerr << "\nclient rkey=" << std::dec << info->rKey);
-
-    //WaitForCompletion();
-
-    PostRDMAWrSend rdmaSend((uint64_t) serverBuff, 256, memReg->lkey, clientId->qp,
-                            info->addr, info->rKey);
-    rdmaSend.Execute();
-
-    strcpy(serverBuff, "HellO worlD RDMA!");
-
     WaitForCompletion();
 
+    D(std::cerr << "client addr=" << std::hex << RecvRRI.info->addr);
+    D(std::cerr << "\nclient rkey=" << std::dec << RecvRRI.info->rKey);
+
+    TestData *Data = new TestData[entries]();
+
+    Data[2].key = 15;
+
+    WriteRdma WriteR(protDomain, clientId->qp, *(RecvRRI.info), entries * sizeof(TestData), Data);
+    WriteR.exec();
+
     check_z(ibv_dereg_mr(memReg));
+    free(ServerBuff);
     HandleDisconnect();
   }
 };
@@ -222,7 +220,7 @@ public:
     HandleConnectionEstablished();
 
     SendTDRdma sendRdma(protDomain, clientId->qp, entries);
-    sendRdma.Execute();
+    sendRdma.exec();
 
     WaitForCompletion();
     HandleDisconnect();
@@ -248,9 +246,9 @@ public:
 
     HandleConnectionEstablished();
 
-    SendTDRdmaFiltered sendRdma(protDomain, clientId->qp, entries);
+    SendRRIFilter sendRdma(protDomain, clientId->qp, entries);
     sendRdma.filter(1);
-    sendRdma.Execute();
+    sendRdma.exec();
 
     WaitForCompletion();
     HandleDisconnect();

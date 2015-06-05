@@ -111,7 +111,7 @@ public:
 
     PostWrRecv recvWr((uint64_t) recvBuf, entries * sizeof(TestData),
                       memReg->lkey, clientId->qp);
-    recvWr.Execute();
+    recvWr.exec();
 
     Connect();
     WaitForCompletion();
@@ -153,7 +153,7 @@ public:
 
     PostWrRecv recvWr((uint64_t) recvBuf, entries * sizeof(TestData),
                       memReg->lkey, clientId->qp);
-    recvWr.Execute();
+    recvWr.exec();
 
     Connect();
     WaitForCompletion();
@@ -187,7 +187,12 @@ public:
     Setup();
 
     recvBuf = (char *) malloc(entries * sizeof(TestData));
-    memset(recvBuf, '\0', entries * sizeof(TestData));
+    memset(recvBuf, 0, entries * sizeof(TestData));
+
+    assert((memReg = ibv_reg_mr(protDomain, (void *) recvBuf, entries * sizeof(TestData),
+                                IBV_ACCESS_REMOTE_WRITE |
+                                IBV_ACCESS_LOCAL_WRITE |
+                                IBV_ACCESS_REMOTE_READ)) != NULL);
 
     assert(rdma_connect(clientId, &connParams) == 0);
     assert(rdma_get_cm_event(eventChannel, &event) == 0);
@@ -196,12 +201,13 @@ public:
     rdma_ack_cm_event(event);
 
     SendRRI sendRRI(recvBuf, memReg, protDomain, clientId->qp);
-    sendRRI.Execute();
+    sendRRI.exec();
 
-    sleep(1); // doesn't work without this, probably missing something.
+    sleep(1);
 
-    std::cout << "recv buffer: " << recvBuf << "\n";
     WaitForCompletion();
+    printTestData(recvBuf, entries);
+
     free(recvBuf);
     rdma_disconnect(clientId);
   }
@@ -227,7 +233,7 @@ public:
 
     // receive RRI
     RecvRRI recvRRI(protDomain, clientId->qp);
-    recvRRI.Execute();
+    recvRRI.exec();
 
     assert(rdma_connect(clientId, &connParams) == 0);
     assert(rdma_get_cm_event(eventChannel, &event) == 0);
@@ -244,7 +250,7 @@ public:
     // issue RDMA read
     PostRDMAWrSend rdmaSend((uint64_t) recvBuf, entries * sizeof(TestData), memReg->lkey, clientId->qp,
                             recvRRI.info->addr, recvRRI.info->rKey);
-    rdmaSend.Execute(true);
+    rdmaSend.exec(true);
     WaitForCompletion();
 
     timer_end(t0);
@@ -282,7 +288,7 @@ public:
 
     // receive RRI
     RecvRRI recvRRI(protDomain, clientId->qp);
-    recvRRI.Execute();
+    recvRRI.exec();
 
     assert(rdma_connect(clientId, &connParams) == 0);
     assert(rdma_get_cm_event(eventChannel, &event) == 0);
@@ -300,15 +306,15 @@ public:
     // TODO: fix assumption of entries / 2
     PostRDMAWrSend rdmaSend((uint64_t) recvBuf, (entries / 2) * sizeof(TestData), memReg->lkey, clientId->qp,
                             recvRRI.info->addr, recvRRI.info->rKey);
-    rdmaSend.Execute(true);
+    rdmaSend.exec(true);
     WaitForCompletion();
 
     timer_end(t0);
 
-    for (unsigned i = 0; i < entries; ++i) {
-      TestData *entry = (TestData *) (recvBuf + i * sizeof(TestData));
-      D(std::cout << "entry " << i << " key " << entry->key << "\n");
-    }
+    //for (unsigned i = 0; i < entries; ++i) {
+    //  TestData *entry = (TestData *) (recvBuf + i * sizeof(TestData));
+    //  D(std::cout << "entry " << i << " key " << entry->key << "\n");
+    //}
 
     free(recvBuf);
     ibv_dereg_mr(memReg);

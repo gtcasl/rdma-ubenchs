@@ -140,7 +140,7 @@ public:
     delete sge;
   }
 
-  void Execute(bool read = false) {
+  void exec(bool read = false) {
     ibv_send_wr sendWr = {};
     sendWr.sg_list = &(sge->sge);
     sendWr.num_sge = 1;
@@ -173,7 +173,7 @@ public:
     delete sge;
   }
 
-  void Execute() {
+  void exec() {
     ibv_send_wr sendWr = {};
     sendWr.sg_list = &(sge->sge);
     sendWr.num_sge = 1;
@@ -199,7 +199,7 @@ public:
     delete sge;
   }
 
-  void Execute() {
+  void exec() {
     ibv_recv_wr recvWr = {};
     recvWr.sg_list = &(sge->sge);
     recvWr.num_sge = 1;
@@ -236,9 +236,9 @@ public:
     ibv_dereg_mr(mr);
   }
 
-  void Execute() {
+  void exec() {
     PostWrSend send((uint64_t) info, sizeof(RemoteRegInfo), mr->lkey, qp);
-    send.Execute();
+    send.exec();
 
     D(std::cerr << "Sent addr=" << std::hex << info->addr << "\n");
     D(std::cerr << "Sent rkey=" << std::dec << info->rKey << "\n");
@@ -267,9 +267,9 @@ public:
     ibv_dereg_mr(mr);
   }
 
-  void Execute() {
+  void exec() {
     PostWrRecv recv((uint64_t) info, sizeof(RemoteRegInfo), mr->lkey, qp);
-    recv.Execute();
+    recv.exec();
   }
 };
 
@@ -309,9 +309,9 @@ public:
     ibv_dereg_mr(mr);
   }
 
-  virtual void Execute() {
+  virtual void exec() {
     PostWrSend send((uint64_t) data, sizeof(TestData) * numEntries, mr->lkey, qp);
-    send.Execute();
+    send.exec();
   }
 };
 
@@ -348,12 +348,12 @@ public:
     std::copy(FilteredData.begin(), FilteredData.end(), FData);
   }
 
-  void Execute() override {
+  void exec() override {
     assert(FData != nullptr);
     assert(MrFiltered != nullptr);
 
     PostWrSend send((uint64_t) FData, sizeof(TestData) * numEntries, MrFiltered->lkey, qp);
-    send.Execute();
+    send.exec();
   }
 };
 
@@ -364,22 +364,22 @@ public:
 
   }
 
-  void Execute() override {
+  void exec() override {
     SendRRI sendRRI(data, mr, protDomain, qp);
-    sendRRI.Execute();
+    sendRRI.exec();
   }
 };
 
-class SendTDRdmaFiltered : public SendTD {
+class SendRRIFilter : public SendTD {
   ibv_mr *MrFiltered;
   TestData *FData;
 public:
-  SendTDRdmaFiltered(ibv_pd *protDomain, ibv_qp *qp, unsigned numEntries)
+  SendRRIFilter(ibv_pd *protDomain, ibv_qp *qp, unsigned numEntries)
     : SendTD(protDomain, qp, numEntries), MrFiltered(nullptr), FData(nullptr) {
 
   }
 
-  ~SendTDRdmaFiltered() {
+  ~SendRRIFilter() {
     delete[] FData;
     ibv_dereg_mr(MrFiltered);
   }
@@ -403,9 +403,76 @@ public:
     std::copy(FilteredData.begin(), FilteredData.end(), FData);
   }
 
-  void Execute() override {
+  void exec() override {
     SendRRI sendRRI(FData, MrFiltered, protDomain, qp);
-    sendRRI.Execute();
+    sendRRI.exec();
+  }
+};
+
+class IBAction {
+protected:
+  TestData *Data;
+  ibv_pd *ProtDom;
+  ibv_qp *QP;
+
+public:
+  IBAction(TestData *Data, ibv_pd *ProtDom, ibv_qp *QP) : Data(Data), ProtDom(ProtDom), QP(QP) {
+
+  }
+
+  ~IBAction() {
+
+  }
+
+  virtual void exec() = 0;
+};
+
+class MemRegion {
+protected:
+  ibv_mr *MR;
+
+public:
+  MemRegion(void *Buffer, size_t Size, ibv_pd *ProtDom) {
+    assert(Buffer != NULL);
+    assert(ProtDom != NULL);
+
+    check_nn(MR = ibv_reg_mr(ProtDom, Buffer, Size,
+                            IBV_ACCESS_REMOTE_WRITE |
+                            IBV_ACCESS_LOCAL_WRITE |
+                            IBV_ACCESS_REMOTE_READ));
+  }
+
+  ~MemRegion() {
+    ibv_dereg_mr(MR);
+  }
+
+  ibv_mr *GetRegion() {
+    return MR;
+  }
+};
+
+class WriteRdma : IBAction {
+  MemRegion *MR;
+  TestData *Data;
+  const RemoteRegInfo &RRI;
+  size_t Size;
+
+public:
+  WriteRdma(ibv_pd *ProtDom, ibv_qp *QP, const RemoteRegInfo &RRI, size_t Size, TestData *Data)
+    : IBAction(Data, ProtDom, QP), Data(Data), RRI(RRI), Size(Size) {
+    assert(Data != NULL);
+
+    MR = new MemRegion((void *) Data, Size, ProtDom);
+  }
+
+  ~WriteRdma() {
+    delete MR;
+  }
+
+  void exec() override {
+    PostRDMAWrSend WriteRdma((uint64_t) Data, Size, MR->GetRegion()->lkey,
+                             QP, RRI.addr, RRI.rKey);
+    WriteRdma.exec();
   }
 };
 
@@ -415,6 +482,13 @@ struct opts {
   bool filtered;
   uint32_t entries;
 };
+
+void printTestData(char *buff, uint32_t entries) {
+  for (unsigned i = 0; i < entries; ++i) {
+    TestData *entry = (TestData *) (buff + i * sizeof(TestData));
+    D(std::cout << "entry " << i << " key " << entry->key << "\n");
+  }
+}
 
 opts parse_cl(int argc, char *argv[]) {
   opts opt = {};
