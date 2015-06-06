@@ -64,17 +64,35 @@ inline void timer_end(const Time::time_point &t0) {
 }
 
 
-inline std::vector<TestData *> filter_data(uint64_t key, char *buf, uint32_t entries) {
-  std::vector<TestData *> result;
+inline std::vector<TestData> filterData(uint64_t key, TestData *buf, uint32_t entries) {
+  std::vector<TestData> result;
 
   for (unsigned i = 0; i < entries; ++i) {
-    TestData *entry = (TestData *) (buf + i * sizeof(TestData));
-    if (key == entry->key) {
-      result.push_back(entry);
+    if (key == buf[i].key) {
+      result.push_back(buf[i]);
     }
   }
 
   return result;
+}
+
+inline TestData *vecToArray(const std::vector<TestData> &Vec) {
+  TestData *arr = new TestData[Vec.size()];
+  std::copy(Vec.begin(), Vec.end(), arr);
+  return arr;
+}
+
+inline void initData(TestData *Data, uint32_t NumEntries, uint32_t NumOnes) {
+  // compute the stride needed to have NumOnes of ones in the array
+  uint32_t Stride = (NumEntries / NumOnes) + 1;
+
+  for (unsigned i = 0; i < NumEntries; ++i) {
+    if (i % Stride == 0) {
+      Data[i].key = 1;
+    } else {
+      Data[i].key = 2;
+    }
+  }
 }
 
 class RDMAPeer {
@@ -488,10 +506,9 @@ struct opts {
   uint32_t entries;
 };
 
-void printTestData(char *buff, uint32_t entries) {
-  for (unsigned i = 0; i < entries; ++i) {
-    TestData *entry = (TestData *) (buff + i * sizeof(TestData));
-    D(std::cout << "entry " << i << " key " << entry->key << "\n");
+void printTestData(TestData *Data, uint32_t NumEntries) {
+  for (unsigned i = 0; i < NumEntries; ++i) {
+    D(std::cout << "entry " << i << " key " << Data[i].key << "\n");
   }
 }
 

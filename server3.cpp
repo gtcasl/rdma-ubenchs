@@ -171,11 +171,16 @@ public:
 
     TestData *Data = new TestData[entries]();
 
-    Data[2].key = 15;
+    initData(Data, entries, 3);
+    std::vector<TestData> Vec = filterData(1, Data, entries);
+    TestData *Filtered = vecToArray(Vec);
 
-    WriteRdma WriteR(protDomain, clientId->qp, *(RecvRRI.info), entries * sizeof(TestData), Data);
+    WriteRdma WriteR(protDomain, clientId->qp, *(RecvRRI.info), Vec.size() * sizeof(TestData), Filtered);
     WriteR.exec();
 
+    sleep(1);
+    delete[] Filtered;
+    delete[] Data;
     HandleDisconnect();
   }
 };
