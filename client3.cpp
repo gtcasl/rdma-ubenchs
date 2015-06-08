@@ -184,21 +184,17 @@ public:
     HandleRouteResolved();
     Setup();
 
-    TestData *Data = new TestData[entries]();
-
-    assert((memReg = ibv_reg_mr(protDomain, (void *) Data, entries * sizeof(TestData),
-                                IBV_ACCESS_REMOTE_WRITE |
-                                IBV_ACCESS_LOCAL_WRITE |
-                                IBV_ACCESS_REMOTE_READ)) != NULL);
-
     assert(rdma_connect(clientId, &connParams) == 0);
     assert(rdma_get_cm_event(eventChannel, &event) == 0);
     assert(event->event == RDMA_CM_EVENT_ESTABLISHED);
 
     rdma_ack_cm_event(event);
 
-    SendRRI sendRRI(Data, memReg, protDomain, clientId->qp);
-    sendRRI.exec();
+    TestData *Data = new TestData[entries]();
+    MemRegion TargetMR(Data, entries * sizeof(TestData), protDomain);
+
+    SendSI sendRRI(Data, TargetMR.getRegion(), protDomain);
+    sendRRI.post(clientId->qp);
 
     WaitForCompletion();
     ibv_recv_wr ZeroRecv = {};
@@ -207,7 +203,6 @@ public:
     WaitForCompletion();
     printTestData(Data, entries);
 
-    ibv_dereg_mr(memReg);
     delete[] Data;
     rdma_disconnect(clientId);
   }
@@ -232,8 +227,8 @@ public:
                                 IBV_ACCESS_REMOTE_READ)) != NULL);
 
     // receive RRI
-    RecvRRI recvRRI(protDomain, clientId->qp);
-    recvRRI.exec();
+    RecvSI ReceiveSI(protDomain);
+    ReceiveSI.post(clientId->qp);
 
     assert(rdma_connect(clientId, &connParams) == 0);
     assert(rdma_get_cm_event(eventChannel, &event) == 0);
@@ -242,13 +237,13 @@ public:
     rdma_ack_cm_event(event);
 
     WaitForCompletion();
-    recvRRI.print();
+    ReceiveSI.print();
 
     auto t0 = timer_start();
 
     // issue RDMA read
     PostRDMAWrSend rdmaSend((uint64_t) recvBuf, entries * sizeof(TestData), memReg->lkey, clientId->qp,
-                            recvRRI.info->addr, recvRRI.info->rKey);
+                            ReceiveSI.Info->Addr, ReceiveSI.Info->RemoteKey);
     rdmaSend.exec(true);
     WaitForCompletion();
 
@@ -285,8 +280,8 @@ public:
                                 IBV_ACCESS_REMOTE_READ)) != NULL);
 
     // receive RRI
-    RecvRRI recvRRI(protDomain, clientId->qp);
-    recvRRI.exec();
+    RecvSI ReceiveSI(protDomain);
+    ReceiveSI.post(clientId->qp);
 
     assert(rdma_connect(clientId, &connParams) == 0);
     assert(rdma_get_cm_event(eventChannel, &event) == 0);
@@ -295,14 +290,14 @@ public:
     rdma_ack_cm_event(event);
 
     WaitForCompletion();
-    recvRRI.print();
+    ReceiveSI.print();
 
     auto t0 = timer_start();
 
     // issue RDMA read
     // TODO: fix assumption of entries / 2
     PostRDMAWrSend rdmaSend((uint64_t) Data, (entries / 2) * sizeof(TestData), memReg->lkey, clientId->qp,
-                            recvRRI.info->addr, recvRRI.info->rKey);
+                            ReceiveSI.Info->Addr, ReceiveSI.Info->RemoteKey);
     rdmaSend.exec(true);
     WaitForCompletion();
 

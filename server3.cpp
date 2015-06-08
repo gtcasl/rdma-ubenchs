@@ -156,22 +156,20 @@ public:
 
     HandleConnectRequest();
 
-    RecvRRI RecvRRI(protDomain, clientId->qp);
-    RecvRRI.exec();
-
-    HandleConnectionEstablished();
-
-    WaitForCompletion();
-
-    RecvRRI.print();
-
     TestData *Data = new TestData[entries]();
-
     initData(Data, entries, 3);
 
     auto t0 = timer_start();
 
-    std::vector<TestData> Vec = filterData(1, Data, entries);
+    RecvSI ReceiveSI(protDomain);
+    ReceiveSI.post(clientId->qp);
+
+    HandleConnectionEstablished();
+    WaitForCompletion();
+
+    ReceiveSI.print();
+
+    std::vector<TestData> Vec = filterData(ReceiveSI.Info->ReqKey, Data, entries);
     TestData *Filtered = vecToArray(Vec);
 
     // RDMA write
@@ -180,7 +178,7 @@ public:
     Sge WriteSGE((uint64_t) Filtered, WriteSize, WriteMR.getRegion()->lkey);
     SendWR WriteWR(WriteSGE);
     WriteWR.setOpcode(IBV_WR_RDMA_WRITE_WITH_IMM);
-    WriteWR.setRdma(RecvRRI.info->addr, RecvRRI.info->rKey);
+    WriteWR.setRdma(ReceiveSI.Info->Addr, ReceiveSI.Info->RemoteKey);
     WriteWR.post(clientId->qp);
 
     // zero-byte send
@@ -242,7 +240,7 @@ public:
 
     HandleConnectionEstablished();
 
-    SendRRIFilter sendRdma(protDomain, clientId->qp, entries);
+    SendSIFilter sendRdma(protDomain, clientId->qp, entries);
     sendRdma.filter(1);
     sendRdma.exec();
 

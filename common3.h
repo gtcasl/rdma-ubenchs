@@ -26,9 +26,9 @@ struct TestData {
 struct Sge {
   ibv_sge sge;
 
-  Sge(uint64_t addr, uint32_t length, uint32_t lkey) {
+  Sge(uint64_t Addr, uint32_t length, uint32_t lkey) {
     sge = {};
-    sge.addr = addr;
+    sge.addr = Addr;
     sge.length = length;
     sge.lkey = lkey;
   }
@@ -38,9 +38,10 @@ struct Sge {
   }
 };
 
-struct RemoteRegInfo {
-  uint64_t addr;
-  uint32_t rKey;
+struct SetupInfo {
+  uint64_t Addr;
+  uint32_t RemoteKey;
+  uint32_t ReqKey;
 };
 
 inline void check(bool b, const std::string &msg) {
@@ -144,18 +145,41 @@ public:
   }
 };
 
+class MemRegion {
+protected:
+  ibv_mr *MR;
+
+public:
+  MemRegion(void *Buffer, size_t Size, ibv_pd *ProtDom) {
+    assert(Buffer != NULL);
+    assert(ProtDom != NULL);
+
+    check_nn(MR = ibv_reg_mr(ProtDom, Buffer, Size,
+                            IBV_ACCESS_REMOTE_WRITE |
+                            IBV_ACCESS_LOCAL_WRITE |
+                            IBV_ACCESS_REMOTE_READ));
+  }
+
+  ~MemRegion() {
+    ibv_dereg_mr(MR);
+  }
+
+  ibv_mr *getRegion() {
+    return MR;
+  }
+};
 
 class PostRDMAWrSend {
   ibv_qp *queuePair;
   Sge *sge;
   uint64_t rAddr;
-  uint32_t rKey;
+  uint32_t RemoteKey;
 
 public:
-  PostRDMAWrSend(uint64_t addr, uint32_t len, uint32_t lkey, ibv_qp *qp,
-                 uint64_t rAddr, uint32_t rKey)
-    : queuePair(qp), rAddr(rAddr), rKey(rKey) {
-    sge = new Sge(addr, len, lkey);
+  PostRDMAWrSend(uint64_t Addr, uint32_t len, uint32_t lkey, ibv_qp *qp,
+                 uint64_t rAddr, uint32_t RemoteKey)
+    : queuePair(qp), rAddr(rAddr), RemoteKey(RemoteKey) {
+    sge = new Sge(Addr, len, lkey);
   }
 
   ~PostRDMAWrSend() {
@@ -175,7 +199,7 @@ public:
     sendWr.send_flags = IBV_SEND_SIGNALED;
     sendWr.next = NULL;
     sendWr.wr.rdma.remote_addr = rAddr;
-    sendWr.wr.rdma.rkey = rKey;
+    sendWr.wr.rdma.rkey = RemoteKey;
 
     check_z(ibv_post_send(queuePair, &sendWr, NULL));
   }
@@ -230,9 +254,9 @@ class PostWrSend {
   Sge *sge;
 
 public:
-  PostWrSend(uint64_t addr, uint32_t len, uint32_t lkey, ibv_qp *qp)
+  PostWrSend(uint64_t Addr, uint32_t len, uint32_t lkey, ibv_qp *qp)
     : queuePair(qp) {
-    sge = new Sge(addr, len, lkey);
+    sge = new Sge(Addr, len, lkey);
   }
 
   ~PostWrSend() {
@@ -256,9 +280,9 @@ class PostWrRecv {
   Sge *sge;
 
 public:
-  PostWrRecv(uint64_t addr, uint32_t len, uint32_t lkey, ibv_qp *qp)
+  PostWrRecv(uint64_t Addr, uint32_t len, uint32_t lkey, ibv_qp *qp)
     : queuePair(qp) {
-    sge = new Sge(addr, len, lkey);
+    sge = new Sge(Addr, len, lkey);
   }
 
   ~PostWrRecv() {
@@ -276,71 +300,69 @@ public:
 };
 
 
-class SendRRI {
-  ibv_mr *mr;
-  RemoteRegInfo *info;
-  ibv_qp *qp;
+class SendSI {
+  MemRegion *MR;
+  SetupInfo *Info;
 
 public:
-  SendRRI(void *buf, ibv_mr *bufMemReg, ibv_pd *protDomain, ibv_qp *qp) : mr(NULL), info(NULL), qp(qp) {
+  SendSI(void *buf, ibv_mr *bufMemReg, ibv_pd *protDomain) : Info(NULL) {
     assert(buf != NULL);
     assert(bufMemReg != NULL);
     assert(protDomain != NULL);
-    assert(qp != NULL);
 
-    info = new RemoteRegInfo();
+    Info = new SetupInfo();
 
-    info->addr = (uint64_t) buf;
-    info->rKey = bufMemReg->rkey;
+    Info->Addr = (uint64_t) buf;
+    Info->RemoteKey = bufMemReg->rkey;
+    Info->ReqKey = 1;
 
-    check_nn(mr = ibv_reg_mr(protDomain, (void *) info, sizeof(RemoteRegInfo),
-                            IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ));
+    MR = new MemRegion(Info, sizeof(SetupInfo), protDomain);
   }
 
-  ~SendRRI() {
-    delete info;
-    ibv_dereg_mr(mr);
+  ~SendSI() {
+    delete Info;
+    delete MR;
   }
 
-  void exec() {
-    PostWrSend send((uint64_t) info, sizeof(RemoteRegInfo), mr->lkey, qp);
+  void post(ibv_qp *QP) {
+    PostWrSend send((uint64_t) Info, sizeof(SetupInfo), MR->getRegion()->lkey, QP);
     send.exec();
 
-    D(std::cerr << "Sent addr=" << std::hex << info->addr << "\n");
-    D(std::cerr << "Sent rkey=" << std::dec << info->rKey << "\n");
+    D(std::cerr << "Sent addr=" << std::hex << Info->Addr << "\n");
+    D(std::cerr << "Sent remote key=" << std::dec << Info->RemoteKey << "\n");
+    D(std::cerr << "Sent req key=" << Info->ReqKey << "\n");
   }
 };
 
-class RecvRRI {
-  ibv_mr *mr;
-  ibv_qp *qp;
+class RecvSI {
+  MemRegion *MR;
 
 public:
-  RemoteRegInfo *info;
+  SetupInfo *Info;
 
-  RecvRRI(ibv_pd *protDom, ibv_qp *qp) : qp(qp) {
+  RecvSI(ibv_pd *protDom) {
     assert(protDom != NULL);
-    assert(qp != NULL);
 
-    info = new RemoteRegInfo();
-
-    check_nn(mr = ibv_reg_mr(protDom, (void *) info, sizeof(RemoteRegInfo),
-                            IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ));
+    Info = new SetupInfo();
+    MR = new MemRegion(Info, sizeof(SetupInfo), protDom);
   }
 
-  ~RecvRRI() {
-    delete info;
-    ibv_dereg_mr(mr);
+  ~RecvSI() {
+    delete Info;
+    delete MR;
   }
 
-  void exec() {
-    PostWrRecv recv((uint64_t) info, sizeof(RemoteRegInfo), mr->lkey, qp);
+  void post(ibv_qp *QP) {
+    assert(QP != NULL);
+
+    PostWrRecv recv((uint64_t) Info, sizeof(SetupInfo), MR->getRegion()->lkey, QP);
     recv.exec();
   }
 
   void print() {
-    D(std::cout << "Client addr=" << std::hex << info->addr << std::dec << "\n");
-    D(std::cout << "Client rkey=" << info->rKey << "\n");
+    D(std::cout << "Client addr=" << std::hex << Info->Addr << std::dec << "\n");
+    D(std::cout << "Client remote key=" << Info->RemoteKey << "\n");
+    D(std::cout << "Client req key=" << Info->ReqKey << "\n");
   }
 };
 
@@ -436,21 +458,21 @@ public:
   }
 
   void exec() override {
-    SendRRI sendRRI(data, mr, protDomain, qp);
-    sendRRI.exec();
+    SendSI sendRRI(data, mr, protDomain);
+    sendRRI.post(qp);
   }
 };
 
-class SendRRIFilter : public SendTD {
+class SendSIFilter : public SendTD {
   ibv_mr *MrFiltered;
   TestData *FData;
 public:
-  SendRRIFilter(ibv_pd *protDomain, ibv_qp *qp, unsigned numEntries)
+  SendSIFilter(ibv_pd *protDomain, ibv_qp *qp, unsigned numEntries)
     : SendTD(protDomain, qp, numEntries), MrFiltered(nullptr), FData(nullptr) {
 
   }
 
-  ~SendRRIFilter() {
+  ~SendSIFilter() {
     delete[] FData;
     ibv_dereg_mr(MrFiltered);
   }
@@ -475,34 +497,12 @@ public:
   }
 
   void exec() override {
-    SendRRI sendRRI(FData, MrFiltered, protDomain, qp);
-    sendRRI.exec();
+    SendSI sendRRI(FData, MrFiltered, protDomain);
+    sendRRI.post(qp);
   }
 };
 
-class MemRegion {
-protected:
-  ibv_mr *MR;
 
-public:
-  MemRegion(void *Buffer, size_t Size, ibv_pd *ProtDom) {
-    assert(Buffer != NULL);
-    assert(ProtDom != NULL);
-
-    check_nn(MR = ibv_reg_mr(ProtDom, Buffer, Size,
-                            IBV_ACCESS_REMOTE_WRITE |
-                            IBV_ACCESS_LOCAL_WRITE |
-                            IBV_ACCESS_REMOTE_READ));
-  }
-
-  ~MemRegion() {
-    ibv_dereg_mr(MR);
-  }
-
-  ibv_mr *getRegion() {
-    return MR;
-  }
-};
 
 struct opts {
   bool read;
