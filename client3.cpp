@@ -200,11 +200,14 @@ public:
     SendRRI sendRRI(Data, memReg, protDomain, clientId->qp);
     sendRRI.exec();
 
-    sleep(1);
+    WaitForCompletion();
+    ibv_recv_wr ZeroRecv = {};
+    check_z(ibv_post_recv(clientId->qp, &ZeroRecv, NULL));
 
     WaitForCompletion();
     printTestData(Data, entries);
 
+    ibv_dereg_mr(memReg);
     delete[] Data;
     rdma_disconnect(clientId);
   }

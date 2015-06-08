@@ -32,6 +32,10 @@ struct Sge {
     sge.length = length;
     sge.lkey = lkey;
   }
+
+  Sge() {
+    sge = {};
+  }
 };
 
 struct RemoteRegInfo {
@@ -174,6 +178,50 @@ public:
     sendWr.wr.rdma.rkey = rKey;
 
     check_z(ibv_post_send(queuePair, &sendWr, NULL));
+  }
+};
+
+class SendWR {
+  Sge SGE;
+
+public:
+  ibv_send_wr WR;
+
+  SendWR(Sge &SGE)
+    : SGE(SGE) {
+    WR = {};
+    WR.sg_list = &(SGE.sge);
+    WR.num_sge = 1;
+    WR.send_flags = IBV_SEND_SIGNALED;
+    WR.next = NULL;
+  }
+
+  // zero byte
+  SendWR() {
+    WR = {};
+    WR.sg_list = NULL;
+    WR.num_sge = 0;
+    WR.send_flags = IBV_SEND_SIGNALED;
+    WR.next = NULL;
+  }
+
+  ~SendWR() {}
+
+  void setOpcode(enum ibv_wr_opcode opcode) {
+    WR.opcode = opcode;
+  }
+
+  void setRdma(uint64_t Raddr, uint32_t Rkey) {
+    WR.wr.rdma.remote_addr = Raddr;
+    WR.wr.rdma.rkey = Rkey;
+  }
+
+  void setImm() {
+    WR.imm_data = htonl(0x1234);
+  }
+
+  void post(ibv_qp *QP) {
+    check_z(ibv_post_send(QP, &WR, NULL));
   }
 };
 
@@ -432,24 +480,6 @@ public:
   }
 };
 
-class IBAction {
-protected:
-  TestData *Data;
-  ibv_pd *ProtDom;
-  ibv_qp *QP;
-
-public:
-  IBAction(TestData *Data, ibv_pd *ProtDom, ibv_qp *QP) : Data(Data), ProtDom(ProtDom), QP(QP) {
-
-  }
-
-  ~IBAction() {
-
-  }
-
-  virtual void exec() = 0;
-};
-
 class MemRegion {
 protected:
   ibv_mr *MR;
@@ -469,33 +499,8 @@ public:
     ibv_dereg_mr(MR);
   }
 
-  ibv_mr *GetRegion() {
+  ibv_mr *getRegion() {
     return MR;
-  }
-};
-
-class WriteRdma : IBAction {
-  MemRegion *MR;
-  TestData *Data;
-  const RemoteRegInfo &RRI;
-  size_t Size;
-
-public:
-  WriteRdma(ibv_pd *ProtDom, ibv_qp *QP, const RemoteRegInfo &RRI, size_t Size, TestData *Data)
-    : IBAction(Data, ProtDom, QP), Data(Data), RRI(RRI), Size(Size) {
-    assert(Data != NULL);
-
-    MR = new MemRegion((void *) Data, Size, ProtDom);
-  }
-
-  ~WriteRdma() {
-    delete MR;
-  }
-
-  void exec() override {
-    PostRDMAWrSend WriteRdma((uint64_t) Data, Size, MR->GetRegion()->lkey,
-                             QP, RRI.addr, RRI.rKey);
-    WriteRdma.exec();
   }
 };
 

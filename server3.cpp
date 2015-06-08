@@ -175,10 +175,22 @@ public:
     std::vector<TestData> Vec = filterData(1, Data, entries);
     TestData *Filtered = vecToArray(Vec);
 
-    WriteRdma WriteR(protDomain, clientId->qp, *(RecvRRI.info), Vec.size() * sizeof(TestData), Filtered);
-    WriteR.exec();
+    // RDMA write
+    size_t WriteSize = Vec.size() * sizeof(TestData);
+    MemRegion WriteMR(Filtered, WriteSize, protDomain);
+    Sge WriteSGE((uint64_t) Filtered, WriteSize, WriteMR.getRegion()->lkey);
+    SendWR WriteWR(WriteSGE);
+    WriteWR.setOpcode(IBV_WR_RDMA_WRITE_WITH_IMM);
+    WriteWR.setRdma(RecvRRI.info->addr, RecvRRI.info->rKey);
+    WriteWR.post(clientId->qp);
 
-    sleep(1);
+    // zero-byte send
+    SendWR ZeroWR;
+    ZeroWR.setOpcode(IBV_WR_SEND);
+    ZeroWR.post(clientId->qp);
+
+    WaitForCompletion();
+
     delete[] Filtered;
     delete[] Data;
     HandleDisconnect();
