@@ -142,16 +142,12 @@ public:
 };
 
 class ServerSWrites : Server {
-  RemoteRegInfo *info;
-
 public:
 
   ServerSWrites() {
-    info = new RemoteRegInfo();
   }
 
   ~ServerSWrites() {
-    delete info;
   }
 
   void start(uint32_t entries) override {
@@ -172,6 +168,9 @@ public:
     TestData *Data = new TestData[entries]();
 
     initData(Data, entries, 3);
+
+    auto t0 = timer_start();
+
     std::vector<TestData> Vec = filterData(1, Data, entries);
     TestData *Filtered = vecToArray(Vec);
 
@@ -190,6 +189,8 @@ public:
     ZeroWR.post(clientId->qp);
 
     WaitForCompletion();
+
+    timer_end(t0);
 
     delete[] Filtered;
     delete[] Data;
