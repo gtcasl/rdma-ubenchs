@@ -150,16 +150,14 @@ public:
   ~ServerSWrites() {
   }
 
-  void start(uint32_t entries) override {
+  void start(const opts &opt) {
     assert(eventChannel != NULL);
     assert(serverId != NULL);
 
     HandleConnectRequest();
 
-    TestData *Data = new TestData[entries]();
-    initData(Data, entries, 3);
-
-    auto t0 = timer_start();
+    TestData *Data = new TestData[opt.entries]();
+    initData(Data, opt.entries, opt.MatchingKeys);
 
     RecvSI ReceiveSI(protDomain);
     ReceiveSI.post(clientId->qp);
@@ -169,7 +167,8 @@ public:
 
     ReceiveSI.print();
 
-    std::vector<TestData> Vec = filterData(ReceiveSI.Info->ReqKey, Data, entries);
+    auto t0 = timer_start();
+    std::vector<TestData> Vec = filterData(ReceiveSI.Info->ReqKey, Data, opt.entries);
     TestData *Filtered = vecToArray(Vec);
 
     // RDMA write
@@ -177,7 +176,7 @@ public:
     MemRegion WriteMR(Filtered, WriteSize, protDomain);
     Sge WriteSGE((uint64_t) Filtered, WriteSize, WriteMR.getRegion()->lkey);
     SendWR WriteWR(WriteSGE);
-    WriteWR.setOpcode(IBV_WR_RDMA_WRITE_WITH_IMM);
+    WriteWR.setOpcode(IBV_WR_RDMA_WRITE);
     WriteWR.setRdma(ReceiveSI.Info->Addr, ReceiveSI.Info->RemoteKey);
     WriteWR.post(clientId->qp);
 
@@ -262,7 +261,7 @@ int main(int argc, char *argv[]) {
     }
   } else if (opt.write) {
     ServerSWrites server;
-    server.start(opt.entries);
+    server.start(opt);
   } else if (opt.filtered) { // filtered server
     FServer server;
     server.start(opt.entries);

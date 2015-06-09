@@ -509,6 +509,7 @@ struct opts {
   bool write;
   bool filtered;
   uint32_t entries;
+  uint32_t MatchingKeys;
 };
 
 void printTestData(TestData *Data, uint32_t NumEntries) {
@@ -521,7 +522,7 @@ opts parse_cl(int argc, char *argv[]) {
   opts opt = {};
 
   while (1) {
-    int c = getopt(argc, argv, "rwfe:");
+    int c = getopt(argc, argv, "rwfe:k:");
 
     if (c == -1) {
       break;
@@ -544,6 +545,13 @@ opts parse_cl(int argc, char *argv[]) {
       sstm >> opt.entries;
       break;
     }
+    case 'k':
+    {
+      std::string str(optarg);
+      std::stringstream sstm(str);
+      sstm >> opt.MatchingKeys;
+      break;
+    }
     default:
       std::cerr << "Invalid option" << "\n";
       check_z(1);
@@ -554,7 +562,10 @@ opts parse_cl(int argc, char *argv[]) {
     check((opt.entries != 0), "must provide number of entries");
   }
 
+  check((opt.MatchingKeys != 0), "matching keys cannot be 0");
+
   D(std::cout << "number of entries=" << opt.entries << "\n");
+  D(std::cout << "number of matching keys=" << opt.MatchingKeys << "\n");
 
   return opt;
 }
