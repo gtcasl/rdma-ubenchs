@@ -88,11 +88,9 @@ inline TestData *vecToArray(const std::vector<TestData> &Vec) {
 }
 
 inline void initData(TestData *Data, uint32_t NumEntries, uint32_t NumOnes) {
-  // compute the stride needed to have NumOnes of ones in the array
-  uint32_t Stride = (NumEntries / NumOnes) + 1;
-
+  // place ones at the end
   for (unsigned i = 0; i < NumEntries; ++i) {
-    if (i % Stride == 0) {
+    if (i >= NumEntries - NumOnes) {
       Data[i].key = 1;
     } else {
       Data[i].key = 2;
