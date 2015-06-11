@@ -1,14 +1,18 @@
 #!/usr/bin/python
 import optparse
 import sys
+import time
 from common import *
 
 def write_rdma(option, opt, value, parser):
-  entries = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768]
+  for entry in ENTRIES:
+    for matching_keys in ENTRIES:
+      if matching_keys >= entry:
+        break;
 
-  for entry in entries:
-    for exp in range(NUM_REPETITION):
-      exe("./client3 -e {0} -w".format(entry))
+      for exp in range(NUM_REPETITION):
+        time.sleep(0.25)
+        exe("./client3 -e {0} -w -k {1}".format(entry, matching_keys))
 
   sys.exit(0)
 

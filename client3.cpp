@@ -156,10 +156,10 @@ public:
     Connect();
     WaitForCompletion();
 
-    for (unsigned i = 0; i < entries; ++i) {
-      TestData *entry = (TestData *) (recvBuf + i * sizeof(TestData));
-      D(std::cout << "entry " << i << " key " << entry->key << "\n");
-    }
+    //for (unsigned i = 0; i < entries; ++i) {
+    //  TestData *entry = (TestData *) (recvBuf + i * sizeof(TestData));
+    //  D(std::cout << "entry " << i << " key " << entry->key << "\n");
+    //}
 
     free(recvBuf);
     ibv_dereg_mr(memReg);

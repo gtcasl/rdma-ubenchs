@@ -56,6 +56,7 @@ protected:
 
     check_z(rdma_get_cm_event(eventChannel, &event));
     assert(event->event == RDMA_CM_EVENT_DISCONNECTED);
+    rdma_ack_cm_event(event);
   }
 
 public:

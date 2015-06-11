@@ -4,16 +4,16 @@ import sys
 from common import *
 
 def write_rdma(option, opt, value, parser):
-  entries = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768]
+  for entry in ENTRIES:
+    for matching_keys in ENTRIES:
+      if matching_keys >= entry:
+        break;
 
-  for entry in entries:
-    res = []
-    for exp in range(NUM_REPETITION):
-      out = exe("./server3 -e {0} -w".format(entry))
-      time = get_elapsed(out)
-      res.append(time)
-
-    print "avg = {0}".format(avg(res))
+      cmd = "perf stat -e {3} -r {2} taskset 0x1011 ./server3 -e {0} -w -k {1}".format(entry,
+                                      matching_keys, NUM_REPETITION, PERF_EVENTS)
+      out = exe(cmd)
+      times = get_elapsed(out)
+      print "Num entries={0}, num matching keys={1}, avg={2}".format(entry, matching_keys, avg(times))
 
   sys.exit(0)
 
