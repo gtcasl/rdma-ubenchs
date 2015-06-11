@@ -7,7 +7,7 @@ PERF_EVENTS = ("cache-references,cache-misses,task-clock,context-switches,"
               "cpu-migrations,page-faults,cycles,instructions,branch-misses,branches")
 
 def exe(cmdline):
-  print cmdline
+  print "executing: " + cmdline
   p = subprocess.Popen(cmdline.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
   out, err = p.communicate()
   return out + err
