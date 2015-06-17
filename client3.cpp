@@ -190,20 +190,14 @@ public:
 
     rdma_ack_cm_event(event);
 
-    TestData *Data = new TestData[entries]();
-    MemRegion TargetMR(Data, entries * sizeof(TestData), protDomain);
-
-    SendSI sendRRI(Data, TargetMR.getRegion(), protDomain);
-    sendRRI.post(clientId->qp);
-
-    WaitForCompletion();
-    ibv_recv_wr ZeroRecv = {};
-    check_z(ibv_post_recv(clientId->qp, &ZeroRecv, NULL));
+    uint32_t *Key = new uint32_t();
+    *Key = 5;
+    MemRegion KeyMR(Key, sizeof(uint32_t), protDomain);
+    PostWrSend SendKey((uint64_t) Key, sizeof(uint32_t), KeyMR.getRegion()->lkey,
+                       clientId->qp);
+    SendKey.exec();
 
     WaitForCompletion();
-    printTestData(Data, entries);
-
-    delete[] Data;
     rdma_disconnect(clientId);
   }
 };

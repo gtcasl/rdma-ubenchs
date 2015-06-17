@@ -157,41 +157,17 @@ public:
 
     HandleConnectRequest();
 
-    TestData *Data = new TestData[opt.entries]();
-    initData(Data, opt.entries, opt.MatchingKeys);
-
-    RecvSI ReceiveSI(protDomain);
-    ReceiveSI.post(clientId->qp);
-
+    uint32_t *Key = new uint32_t();
+    MemRegion KeyMR(Key, sizeof(uint32_t), protDomain);
+    PostWrRecv RecvKey((uint64_t) Key, sizeof(uint32_t), KeyMR.getRegion()->lkey,
+                       clientId->qp);
+    RecvKey.exec();
     HandleConnectionEstablished();
     WaitForCompletion();
 
-    ReceiveSI.print();
+    std::cout << "key=" << *Key << "\n";
 
-    auto t0 = timer_start();
-    std::vector<TestData> Vec = filterData(ReceiveSI.Info->ReqKey, Data, opt.entries);
-    TestData *Filtered = vecToArray(Vec);
-
-    // RDMA write
-    size_t WriteSize = Vec.size() * sizeof(TestData);
-    MemRegion WriteMR(Filtered, WriteSize, protDomain);
-    Sge WriteSGE((uint64_t) Filtered, WriteSize, WriteMR.getRegion()->lkey);
-    SendWR WriteWR(WriteSGE);
-    WriteWR.setOpcode(IBV_WR_RDMA_WRITE);
-    WriteWR.setRdma(ReceiveSI.Info->Addr, ReceiveSI.Info->RemoteKey);
-    WriteWR.post(clientId->qp);
-
-    // zero-byte send
-    SendWR ZeroWR;
-    ZeroWR.setOpcode(IBV_WR_SEND);
-    ZeroWR.post(clientId->qp);
-
-    WaitForCompletion();
-
-    timer_end(t0);
-
-    delete[] Filtered;
-    delete[] Data;
+    delete Key;
     HandleDisconnect();
   }
 };
