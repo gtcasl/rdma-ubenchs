@@ -191,14 +191,36 @@ public:
     rdma_ack_cm_event(event);
 
     uint32_t *Key = new uint32_t();
-    *Key = 5;
+    *Key = 15;
     MemRegion KeyMR(Key, sizeof(uint32_t), protDomain);
     PostWrSend SendKey((uint64_t) Key, sizeof(uint32_t), KeyMR.getRegion()->lkey,
                        clientId->qp);
-    SendKey.exec();
 
+    uint32_t *Do = new uint32_t[32]();
+    MemRegion DoMR(Do, sizeof(uint32_t) * 32, protDomain);
+    PostWrRecv RecvDo((uint64_t) Do, sizeof(uint32_t) * 32, DoMR.getRegion()->lkey,
+                      clientId->qp);
+
+    SendKey.exec();
     WaitForCompletion();
+
+    for (unsigned it = 0; it < 10; ++it) {
+
+      RecvDo.exec();
+
+      WaitForCompletion();
+
+      std::cout << "Do[7]=" << Do[7] << "\n";
+
+      *Key = it;
+      SendKey.exec();
+      WaitForCompletion();
+    }
+
+
     rdma_disconnect(clientId);
+    delete[] Do;
+    delete Key;
   }
 };
 

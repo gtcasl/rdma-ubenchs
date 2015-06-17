@@ -161,13 +161,32 @@ public:
     MemRegion KeyMR(Key, sizeof(uint32_t), protDomain);
     PostWrRecv RecvKey((uint64_t) Key, sizeof(uint32_t), KeyMR.getRegion()->lkey,
                        clientId->qp);
+
+    uint32_t *Do = new uint32_t[32]();
+    Do[7] = 0x1234;
+    MemRegion DoMR(Do, sizeof(uint32_t) * 32, protDomain);
+    PostWrSend SendDo((uint64_t) Do, sizeof(uint32_t) * 32, DoMR.getRegion()->lkey,
+                       clientId->qp);
+
     RecvKey.exec();
     HandleConnectionEstablished();
+
     WaitForCompletion();
+
+    for (unsigned it = 0; it < 10; ++it) {
+      Do[7] = it * 100;
+      std::cout << "key=" << *Key << "\n";
+
+      SendDo.exec();
+      WaitForCompletion();
+      RecvKey.exec();
+      WaitForCompletion();
+    }
 
     std::cout << "key=" << *Key << "\n";
 
     delete Key;
+    delete[] Do;
     HandleDisconnect();
   }
 };
