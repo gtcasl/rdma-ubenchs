@@ -125,20 +125,30 @@ public:
     qpAttr.qp_type = IBV_QPT_RC;
   }
 
-  void WaitForCompletion() {
-    assert(compQueue != NULL);
-    int ret = 0;
-
-    ibv_wc workComp = {};
-
-    while ((ret = ibv_poll_cq(compQueue, 1, &workComp)) == 0) {}
-
-    check(ret >= 0, "ibv_poll_cq didn't return 0");
+  void checkPollResult(int RetVal, ibv_wc const &workComp) {
+    check(RetVal > 0, "ibv_poll_cq returned < 0");
 
     if (workComp.status != IBV_WC_SUCCESS) {
       std::ostringstream sstm;
       sstm << "ibv_poll_cq status was not IBV_WC_SUCCESS, it was " << workComp.status;
       check(false, sstm.str());
+    }
+  }
+
+  void WaitForCompletion() {
+    assert(compQueue != NULL);
+    int ret = 0;
+    ibv_wc workComp = {};
+
+    // wait for the first wc
+    while ((ret = ibv_poll_cq(compQueue, 1, &workComp)) == 0) {}
+
+    // this is the first wc that arrived
+    checkPollResult(ret, workComp);
+
+    // if there are more, keep consuming them
+    while ((ret = ibv_poll_cq(compQueue, 1, &workComp)) != 0) {
+      checkPollResult(ret, workComp);
     }
   }
 };

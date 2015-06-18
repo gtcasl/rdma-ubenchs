@@ -174,16 +174,14 @@ public:
     WaitForCompletion();
 
     for (unsigned it = 0; it < 10; ++it) {
-      Do[7] = it * 100;
       std::cout << "key=" << *Key << "\n";
 
+      Do[7] = it * 100;
       SendDo.exec();
       WaitForCompletion();
       RecvKey.exec();
       WaitForCompletion();
     }
-
-    std::cout << "key=" << *Key << "\n";
 
     delete Key;
     delete[] Do;

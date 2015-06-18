@@ -205,18 +205,14 @@ public:
     WaitForCompletion();
 
     for (unsigned it = 0; it < 10; ++it) {
-
       RecvDo.exec();
-
       WaitForCompletion();
-
       std::cout << "Do[7]=" << Do[7] << "\n";
 
       *Key = it;
       SendKey.exec();
       WaitForCompletion();
     }
-
 
     rdma_disconnect(clientId);
     delete[] Do;
