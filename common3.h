@@ -114,13 +114,13 @@ public:
   RDMAPeer() : eventChannel(NULL), port(21234), protDomain(NULL), compQueue(NULL),
                event(NULL) {
     connParams = {};
-    connParams.initiator_depth = 1;
-    connParams.responder_resources = 1;
+    connParams.initiator_depth = 3;
+    connParams.responder_resources = 3;
     qpAttr = {};
     qpAttr.cap.max_send_wr = 32;
     qpAttr.cap.max_recv_wr = 32;
-    qpAttr.cap.max_send_sge = 1;
-    qpAttr.cap.max_recv_sge = 1;
+    qpAttr.cap.max_send_sge = 3;
+    qpAttr.cap.max_recv_sge = 3;
     qpAttr.cap.max_inline_data = 64;
     qpAttr.qp_type = IBV_QPT_RC;
   }
@@ -150,6 +150,34 @@ public:
     while ((ret = ibv_poll_cq(compQueue, 1, &workComp)) != 0) {
       checkPollResult(ret, workComp);
     }
+  }
+
+  void checkPollResult(int RetVal, ibv_wc *WorkComps) {
+    check(RetVal > 0, "ibv_poll_cq returned < 0");
+
+    for (unsigned i = 0; i < (unsigned) RetVal; ++i) {
+      if (WorkComps[i].status != IBV_WC_SUCCESS) {
+        std::ostringstream sstm;
+        sstm << "ibv_poll_cq status was not IBV_WC_SUCCESS, it was " << WorkComps[i].status;
+        check(false, sstm.str());
+      }
+    }
+  }
+
+  void WaitForCompletion(uint32_t NumReqs) {
+    assert(compQueue != NULL);
+    int RetVal = 0;
+    ibv_wc *WorkComps = new ibv_wc[NumReqs]();
+
+    while (NumReqs > 0) {
+      while ((RetVal = ibv_poll_cq(compQueue, NumReqs, WorkComps)) == 0) {}
+
+      checkPollResult(RetVal, WorkComps);
+
+      NumReqs -= RetVal;
+    }
+
+    delete[] WorkComps;
   }
 };
 

@@ -201,22 +201,23 @@ public:
     PostWrRecv RecvDo((uint64_t) Do, sizeof(uint32_t) * 32, DoMR.getRegion()->lkey,
                       clientId->qp);
 
-    SendKey.exec();
-    WaitForCompletion();
-
-    for (unsigned it = 0; it < 10; ++it) {
-      RecvDo.exec();
-      WaitForCompletion();
-      std::cout << "Do[7]=" << Do[7] << "\n";
-
+    for (unsigned it = 0; it < 50; ++it) {
+      auto t0 = timer_start();
       *Key = it;
       SendKey.exec();
-      WaitForCompletion();
+
+      RecvDo.exec();
+
+      // We can simply wait for the 2 events
+      WaitForCompletion(2);
+
+      timer_end(t0);
+      std::cout << "Do[7]=" << Do[7] << "\n";
     }
 
-    rdma_disconnect(clientId);
     delete[] Do;
     delete Key;
+    rdma_disconnect(clientId);
   }
 };
 

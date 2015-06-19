@@ -168,20 +168,32 @@ public:
     PostWrSend SendDo((uint64_t) Do, sizeof(uint32_t) * 32, DoMR.getRegion()->lkey,
                        clientId->qp);
 
-    RecvKey.exec();
-    HandleConnectionEstablished();
+    for (unsigned it = 0; it < 50; ++it) {
+      auto t0 = timer_start();
+      RecvKey.exec();
 
-    WaitForCompletion();
+      // The first time we are here, we have to establish the connection.
+      // Also, we wait for the key to be received (we need it down below).
+      // In all the other cases, we wait for 2 wr. That is, the Send request from
+      // down below and the Recv req from the beginning of the loop (for the key).
+      // This way we save ourselves from waiting for Do to be sent.
+      if (it == 0) {
+        HandleConnectionEstablished();
+        WaitForCompletion(1);
+      } else {
+        WaitForCompletion(2);
+      }
 
-    for (unsigned it = 0; it < 10; ++it) {
-      std::cout << "key=" << *Key << "\n";
+      // key can be used from this point forward safely
 
       Do[7] = it * 100;
       SendDo.exec();
-      WaitForCompletion();
-      RecvKey.exec();
-      WaitForCompletion();
+      timer_end(t0);
+
+      std::cout << "key=" << *Key << "\n";
     }
+
+    WaitForCompletion(1);
 
     delete Key;
     delete[] Do;
