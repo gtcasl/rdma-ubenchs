@@ -404,141 +404,141 @@ public:
   }
 };
 
-class SendTD {
-public:
-  ibv_mr *mr;
-  TestData *data;
-  ibv_qp *qp;
-  ibv_pd *protDomain;
-  unsigned numEntries;
+//class SendTD {
+//public:
+//  ibv_mr *mr;
+//  TestData *data;
+//  ibv_qp *qp;
+//  ibv_pd *protDomain;
+//  unsigned numEntries;
+//
+//  SendTD(ibv_pd *protDomain, ibv_qp *qp, unsigned numEntries)
+//    : mr(NULL), data(NULL), qp(qp), protDomain(protDomain), numEntries(numEntries) {
+//    assert(protDomain != NULL);
+//    assert(qp != NULL);
+//
+//    data = new TestData[numEntries];
+//
+//    for (unsigned i = 0, e = numEntries / 2; i < e; ++i) {
+//      data[i].key = 1;
+//    }
+//
+//    for (unsigned i = numEntries / 2; i < numEntries; ++i) {
+//      data[i].key = 2;
+//    }
+//
+//    //for (unsigned i = 0; i < numEntries; ++i) {
+//    //  D(std::cout << "entry " << i << " key " << data[i].key << "\n");
+//    //}
+//
+//    check_nn(mr = ibv_reg_mr(protDomain, (void *) data, sizeof(TestData) * numEntries,
+//                            IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ));
+//  }
+//
+//  ~SendTD() {
+//    delete[] data;
+//    ibv_dereg_mr(mr);
+//  }
+//
+//  virtual void exec() {
+//    PostWrSend send((uint64_t) data, sizeof(TestData) * numEntries, mr->lkey, qp);
+//    send.exec();
+//  }
+//};
 
-  SendTD(ibv_pd *protDomain, ibv_qp *qp, unsigned numEntries)
-    : mr(NULL), data(NULL), qp(qp), protDomain(protDomain), numEntries(numEntries) {
-    assert(protDomain != NULL);
-    assert(qp != NULL);
-
-    data = new TestData[numEntries];
-
-    for (unsigned i = 0, e = numEntries / 2; i < e; ++i) {
-      data[i].key = 1;
-    }
-
-    for (unsigned i = numEntries / 2; i < numEntries; ++i) {
-      data[i].key = 2;
-    }
-
-    //for (unsigned i = 0; i < numEntries; ++i) {
-    //  D(std::cout << "entry " << i << " key " << data[i].key << "\n");
-    //}
-
-    check_nn(mr = ibv_reg_mr(protDomain, (void *) data, sizeof(TestData) * numEntries,
-                            IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ));
-  }
-
-  ~SendTD() {
-    delete[] data;
-    ibv_dereg_mr(mr);
-  }
-
-  virtual void exec() {
-    PostWrSend send((uint64_t) data, sizeof(TestData) * numEntries, mr->lkey, qp);
-    send.exec();
-  }
-};
-
-class SendTDFiltered : SendTD {
-  ibv_mr *MrFiltered;
-  TestData *FData;
-
-public:
-  SendTDFiltered(ibv_pd *protDomain, ibv_qp *qp, unsigned numEntries)
-    : SendTD(protDomain, qp, numEntries), MrFiltered(nullptr), FData(nullptr) {
-  }
-
-  ~SendTDFiltered() {
-    delete[] FData;
-    ibv_dereg_mr(MrFiltered);
-  }
-
-  void filter(uint64_t key) {
-    std::vector<TestData> FilteredData;
-
-    D(std::cout << "Filtering data\n");
-
-    for (unsigned i = 0; i < numEntries; ++i) {
-      if (data[i].key == key) {
-        FilteredData.push_back(data[i]);
-      }
-    }
-
-    numEntries = FilteredData.size();
-    FData = new TestData[numEntries];
-    check_nn(MrFiltered = ibv_reg_mr(protDomain, (void *) FData, sizeof(TestData) * numEntries,
-                            IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ));
-
-    std::copy(FilteredData.begin(), FilteredData.end(), FData);
-  }
-
-  void exec() override {
-    assert(FData != nullptr);
-    assert(MrFiltered != nullptr);
-
-    PostWrSend send((uint64_t) FData, sizeof(TestData) * numEntries, MrFiltered->lkey, qp);
-    send.exec();
-  }
-};
-
-class SendTDRdma : public SendTD {
-public:
-  SendTDRdma(ibv_pd *protDomain, ibv_qp *qp, unsigned numEntries)
-    : SendTD(protDomain, qp, numEntries) {
-
-  }
-
-  void exec() override {
-    SendSI sendRRI(data, mr, protDomain);
-    sendRRI.post(qp);
-  }
-};
-
-class SendSIFilter : public SendTD {
-  ibv_mr *MrFiltered;
-  TestData *FData;
-public:
-  SendSIFilter(ibv_pd *protDomain, ibv_qp *qp, unsigned numEntries)
-    : SendTD(protDomain, qp, numEntries), MrFiltered(nullptr), FData(nullptr) {
-
-  }
-
-  ~SendSIFilter() {
-    delete[] FData;
-    ibv_dereg_mr(MrFiltered);
-  }
-
-  void filter(uint32_t key) {
-    std::vector<TestData> FilteredData;
-
-    D(std::cout << "Filtering data\n");
-
-    for (unsigned i = 0; i < numEntries; ++i) {
-      if (data[i].key == key) {
-        FilteredData.push_back(data[i]);
-      }
-    }
-
-    FData = new TestData[FilteredData.size()];
-    // TODO: fix assumption of numEntries / 2
-    check_nn(MrFiltered = ibv_reg_mr(protDomain, (void *) FData, sizeof(TestData) * (numEntries / 2),
-                            IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ));
-
-    std::copy(FilteredData.begin(), FilteredData.end(), FData);
-  }
-
-  void exec() override {
-    SendSI sendRRI(FData, MrFiltered, protDomain);
-    sendRRI.post(qp);
-  }
-};
+//class SendTDFiltered : SendTD {
+//  ibv_mr *MrFiltered;
+//  TestData *FData;
+//
+//public:
+//  SendTDFiltered(ibv_pd *protDomain, ibv_qp *qp, unsigned numEntries)
+//    : SendTD(protDomain, qp, numEntries), MrFiltered(nullptr), FData(nullptr) {
+//  }
+//
+//  ~SendTDFiltered() {
+//    delete[] FData;
+//    ibv_dereg_mr(MrFiltered);
+//  }
+//
+//  void filter(uint64_t key) {
+//    std::vector<TestData> FilteredData;
+//
+//    D(std::cout << "Filtering data\n");
+//
+//    for (unsigned i = 0; i < numEntries; ++i) {
+//      if (data[i].key == key) {
+//        FilteredData.push_back(data[i]);
+//      }
+//    }
+//
+//    numEntries = FilteredData.size();
+//    FData = new TestData[numEntries];
+//    check_nn(MrFiltered = ibv_reg_mr(protDomain, (void *) FData, sizeof(TestData) * numEntries,
+//                            IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ));
+//
+//    std::copy(FilteredData.begin(), FilteredData.end(), FData);
+//  }
+//
+//  void exec() override {
+//    assert(FData != nullptr);
+//    assert(MrFiltered != nullptr);
+//
+//    PostWrSend send((uint64_t) FData, sizeof(TestData) * numEntries, MrFiltered->lkey, qp);
+//    send.exec();
+//  }
+//};
+//
+//class SendTDRdma : public SendTD {
+//public:
+//  SendTDRdma(ibv_pd *protDomain, ibv_qp *qp, unsigned numEntries)
+//    : SendTD(protDomain, qp, numEntries) {
+//
+//  }
+//
+//  void exec() override {
+//    SendSI sendRRI(data, mr, protDomain);
+//    sendRRI.post(qp);
+//  }
+//};
+//
+//class SendSIFilter : public SendTD {
+//  ibv_mr *MrFiltered;
+//  TestData *FData;
+//public:
+//  SendSIFilter(ibv_pd *protDomain, ibv_qp *qp, unsigned numEntries)
+//    : SendTD(protDomain, qp, numEntries), MrFiltered(nullptr), FData(nullptr) {
+//
+//  }
+//
+//  ~SendSIFilter() {
+//    delete[] FData;
+//    ibv_dereg_mr(MrFiltered);
+//  }
+//
+//  void filter(uint32_t key) {
+//    std::vector<TestData> FilteredData;
+//
+//    D(std::cout << "Filtering data\n");
+//
+//    for (unsigned i = 0; i < numEntries; ++i) {
+//      if (data[i].key == key) {
+//        FilteredData.push_back(data[i]);
+//      }
+//    }
+//
+//    FData = new TestData[FilteredData.size()];
+//    // TODO: fix assumption of numEntries / 2
+//    check_nn(MrFiltered = ibv_reg_mr(protDomain, (void *) FData, sizeof(TestData) * (numEntries / 2),
+//                            IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ));
+//
+//    std::copy(FilteredData.begin(), FilteredData.end(), FData);
+//  }
+//
+//  void exec() override {
+//    SendSI sendRRI(FData, MrFiltered, protDomain);
+//    sendRRI.post(qp);
+//  }
+//};
 
 
 
