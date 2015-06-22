@@ -10,10 +10,37 @@
 #include "common3.h"
 
 class Server : public RDMAPeer {
-protected:
+public:
   rdma_cm_id *serverId;
   rdma_cm_id *clientId;
   ibv_mr *memReg;
+
+  Server() : RDMAPeer(), serverId(NULL), clientId(NULL), memReg(NULL) {
+    assert((eventChannel = rdma_create_event_channel()) != NULL);
+    assert(rdma_create_id(eventChannel, &serverId, NULL, RDMA_PS_TCP) == 0);
+
+    sin = {};
+    sin.sin_family = AF_INET;
+    sin.sin_port = htons(port);
+    sin.sin_addr.s_addr = htonl(INADDR_ANY);
+
+    assert(rdma_bind_addr(serverId, (sockaddr *) &sin) == 0);
+    assert(rdma_listen(serverId, 6) == 0);
+  }
+
+  virtual ~Server() {
+    if (clientId)
+      rdma_destroy_qp(clientId);
+
+    if (compQueue)
+      ibv_destroy_cq(compQueue);
+
+    if (protDomain)
+      ibv_dealloc_pd(protDomain);
+
+    rdma_destroy_id(serverId);
+    rdma_destroy_event_channel(eventChannel);
+  }
 
   void HandleConnectRequest() {
     assert(eventChannel != NULL);
@@ -57,34 +84,6 @@ protected:
     check_z(rdma_get_cm_event(eventChannel, &event));
     assert(event->event == RDMA_CM_EVENT_DISCONNECTED);
     rdma_ack_cm_event(event);
-  }
-
-public:
-  Server() : RDMAPeer(), serverId(NULL), clientId(NULL), memReg(NULL) {
-    assert((eventChannel = rdma_create_event_channel()) != NULL);
-    assert(rdma_create_id(eventChannel, &serverId, NULL, RDMA_PS_TCP) == 0);
-
-    sin = {};
-    sin.sin_family = AF_INET;
-    sin.sin_port = htons(port);
-    sin.sin_addr.s_addr = htonl(INADDR_ANY);
-
-    assert(rdma_bind_addr(serverId, (sockaddr *) &sin) == 0);
-    assert(rdma_listen(serverId, 6) == 0);
-  }
-
-  virtual ~Server() {
-    if (clientId)
-      rdma_destroy_qp(clientId);
-
-    if (compQueue)
-      ibv_destroy_cq(compQueue);
-
-    if (protDomain)
-      ibv_dealloc_pd(protDomain);
-
-    rdma_destroy_id(serverId);
-    rdma_destroy_event_channel(eventChannel);
   }
 };
 
@@ -151,12 +150,49 @@ public:
   }
 };
 
-void SrvLocalCompClient() {
-  Server srv;
+void srvLocalCompClient(const opts &opt) {
+  // local computation on client: receive key and Send Di
+  Server Srv;
+  Srv.HandleConnectRequest();
+
+  uint32_t *Key = new uint32_t();
+  MemRegion KeyMR(Key, sizeof(uint32_t), Srv.protDomain);
+  PostWrRecv RecvKey((uint64_t) Key, sizeof(uint32_t), KeyMR.getRegion()->lkey,
+                     Srv.clientId->qp);
+
+  uint32_t *Di = new uint32_t[opt.KeysForFunc]();
+  Di[opt.KeysForFunc - 1] = 0x1234;
+  MemRegion DiMR(Di, sizeof(uint32_t) * opt.KeysForFunc, Srv.protDomain);
+  PostWrSend SendDi((uint64_t) Di, sizeof(uint32_t) * opt.KeysForFunc, DiMR.getRegion()->lkey,
+                     Srv.clientId->qp);
+
+  for (unsigned it = 0; it < 50; ++it) {
+    auto t0 = timer_start();
+    RecvKey.exec();
+
+    // The first time we are here, we have to establish the connection.
+    // Also, we wait for the key to be received (we need it down below).
+    // In all the other cases, we wait for 2 wr. That is, the Send request from
+    // down below and the Recv req from the beginning of the loop (for the key).
+    // This way we save ourselves from waiting for Do to be sent.
+    if (it == 0) {
+      Srv.HandleConnectionEstablished();
+      Srv.WaitForCompletion(1);
+    } else {
+      Srv.WaitForCompletion(2);
+    }
+
+    // key can be used from this point forward safely
+
+    Di[opt.KeysForFunc - 1] = it * 100;
+    SendDi.exec();
+    timer_end(t0);
+    std::cout << "key=" << *Key << "\n";
+  }
 
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *  argv[]) {
   opts opt = parse_cl(argc, argv);
 
   if (opt.send) {
@@ -167,6 +203,7 @@ int main(int argc, char *argv[]) {
     check(false, "not implemented");
   } else {
     // local computation on client: receive key and Send Di
+    srvLocalCompClient(opt);
   }
 
   return 0;

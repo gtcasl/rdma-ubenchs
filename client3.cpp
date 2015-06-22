@@ -12,7 +12,7 @@
 #include "common3.h"
 
 class Client : public RDMAPeer {
-protected:
+public:
   rdma_cm_id *clientId;
   ibv_mr *memReg;
   char *recvBuf;
@@ -64,7 +64,6 @@ protected:
     rdma_ack_cm_event(event);
   }
 
-public:
   Client() : clientId(NULL), recvBuf(NULL) {
     sin = {};
     sin.sin_family = AF_INET;
@@ -144,6 +143,48 @@ public:
   }
 };
 
+void clientLocalCompClient(const opts &opt) {
+  Client Client;
+  Client.HandleAddrResolved();
+  Client.HandleRouteResolved();
+  Client.Setup();
+
+  assert(rdma_connect(Client.clientId, &Client.connParams) == 0);
+  assert(rdma_get_cm_event(Client.eventChannel, &Client.event) == 0);
+  assert(Client.event->event == RDMA_CM_EVENT_ESTABLISHED);
+
+  rdma_ack_cm_event(Client.event);
+
+  uint32_t *Key = new uint32_t();
+  *Key = 15;
+  MemRegion KeyMR(Key, sizeof(uint32_t), Client.protDomain);
+  PostWrSend SendKey((uint64_t) Key, sizeof(uint32_t), KeyMR.getRegion()->lkey,
+                     Client.clientId->qp);
+
+  uint32_t *Di = new uint32_t[opt.KeysForFunc]();
+  MemRegion DiMR(Di, sizeof(uint32_t) * opt.KeysForFunc, Client.protDomain);
+  PostWrRecv RecvDi((uint64_t) Di, sizeof(uint32_t) * opt.KeysForFunc, DiMR.getRegion()->lkey,
+                    Client.clientId->qp);
+
+  for (unsigned it = 0; it < 50; ++it) {
+    auto t0 = timer_start();
+    *Key = it;
+    SendKey.exec();
+
+    RecvDi.exec();
+
+    // We can simply wait for the 2 events
+    Client.WaitForCompletion(2);
+    expensiveFunc();
+    timer_end(t0);
+    std::cout << "Di[" << opt.KeysForFunc - 1 << "]=" << Di[opt.KeysForFunc - 1] << "\n";
+  }
+
+  delete[] Di;
+  delete Key;
+  rdma_disconnect(Client.clientId);
+}
+
 int main(int argc, char *argv[]) {
   opts opt = parse_cl(argc, argv);
 
@@ -155,6 +196,7 @@ int main(int argc, char *argv[]) {
   } else {
     // local computation on client.
     // send key and receive Di. then execute expensiveFunc.
+    clientLocalCompClient(opt);
   }
 
   return 0;

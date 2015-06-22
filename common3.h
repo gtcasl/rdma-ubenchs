@@ -99,7 +99,7 @@ inline void initData(TestData *Data, uint32_t NumEntries, uint32_t NumOnes) {
 }
 
 class RDMAPeer {
-protected:
+public:
   rdma_event_channel *eventChannel;
   int port;
   ibv_pd *protDomain;
@@ -110,7 +110,6 @@ protected:
   sockaddr_in sin;
   ibv_qp_init_attr qpAttr;
 
-public:
   RDMAPeer() : eventChannel(NULL), port(21234), protDomain(NULL), compQueue(NULL),
                event(NULL) {
     connParams = {};
