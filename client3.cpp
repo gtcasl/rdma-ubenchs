@@ -99,7 +99,7 @@ public:
   ~ClientSWrites() {
   }
 
-  void start(uint32_t entries) {
+  void start(const opts &opt) {
     assert(eventChannel != NULL);
     assert(clientId != NULL);
 
@@ -119,9 +119,9 @@ public:
     PostWrSend SendKey((uint64_t) Key, sizeof(uint32_t), KeyMR.getRegion()->lkey,
                        clientId->qp);
 
-    uint32_t *Do = new uint32_t[32]();
-    MemRegion DoMR(Do, sizeof(uint32_t) * 32, protDomain);
-    PostWrRecv RecvDo((uint64_t) Do, sizeof(uint32_t) * 32, DoMR.getRegion()->lkey,
+    uint32_t *Do = new uint32_t[opt.OutputEntries]();
+    MemRegion DoMR(Do, sizeof(uint32_t) * opt.OutputEntries, protDomain);
+    PostWrRecv RecvDo((uint64_t) Do, sizeof(uint32_t) * opt.OutputEntries, DoMR.getRegion()->lkey,
                       clientId->qp);
 
     for (unsigned it = 0; it < 50; ++it) {
@@ -135,7 +135,7 @@ public:
       WaitForCompletion(2);
 
       timer_end(t0);
-      std::cout << "Do[7]=" << Do[7] << "\n";
+      std::cout << "Do[" << opt.OutputEntries - 1 << "]=" << Do[opt.OutputEntries - 1] << "\n";
     }
 
     delete[] Do;
@@ -148,11 +148,13 @@ int main(int argc, char *argv[]) {
   opts opt = parse_cl(argc, argv);
 
   if (opt.send) {
+    // send key and then receive Do.
     ClientSWrites client;
-    client.start(opt.entries);
+    client.start(opt);
   } else if (opt.write) {
-    ClientSWrites client;
-    client.start(opt.entries);
+  } else {
+    // local computation on client.
+    // send key and receive Di. then execute expensiveFunc.
   }
 
   return 0;

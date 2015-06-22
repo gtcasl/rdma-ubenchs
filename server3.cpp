@@ -60,19 +60,7 @@ protected:
   }
 
 public:
-  Server() : serverId(NULL), clientId(NULL), memReg(NULL) {
-
-    connParams = {};
-    connParams.initiator_depth = 1;
-    connParams.responder_resources = 1;
-    qpAttr = {};
-    qpAttr.cap.max_send_wr = 32;
-    qpAttr.cap.max_recv_wr = 32;
-    qpAttr.cap.max_send_sge = 1;
-    qpAttr.cap.max_recv_sge = 1;
-    qpAttr.cap.max_inline_data = 64;
-    qpAttr.qp_type = IBV_QPT_RC;
-
+  Server() : RDMAPeer(), serverId(NULL), clientId(NULL), memReg(NULL) {
     assert((eventChannel = rdma_create_event_channel()) != NULL);
     assert(rdma_create_id(eventChannel, &serverId, NULL, RDMA_PS_TCP) == 0);
 
@@ -120,14 +108,14 @@ public:
     PostWrRecv RecvKey((uint64_t) Key, sizeof(uint32_t), KeyMR.getRegion()->lkey,
                        clientId->qp);
 
-    uint32_t *Do = new uint32_t[32]();
-    Do[7] = 0x1234;
-    MemRegion DoMR(Do, sizeof(uint32_t) * 32, protDomain);
-    PostWrSend SendDo((uint64_t) Do, sizeof(uint32_t) * 32, DoMR.getRegion()->lkey,
+    uint32_t *Do = new uint32_t[opt.OutputEntries]();
+    Do[opt.OutputEntries - 1] = 0x1234;
+    MemRegion DoMR(Do, sizeof(uint32_t) * opt.OutputEntries, protDomain);
+    PostWrSend SendDo((uint64_t) Do, sizeof(uint32_t) * opt.OutputEntries, DoMR.getRegion()->lkey,
                        clientId->qp);
 
     for (unsigned it = 0; it < 50; ++it) {
-
+      auto t0 = timer_start();
       RecvKey.exec();
 
       // The first time we are here, we have to establish the connection.
@@ -143,13 +131,15 @@ public:
       }
 
       // key can be used from this point forward safely
-      auto t0 = timer_start();
+
+      // assume the function needs a subset A of a large set B to exec. if we were to
+      // run the func locally on the client, we would need to transfer A first.
       expensiveFunc();
-      timer_end(t0);
-      Do[7] = it * 100;
+
+      Do[opt.OutputEntries - 1] = it * 100;
       SendDo.exec();
 
-
+      timer_end(t0);
       std::cout << "key=" << *Key << "\n";
     }
 
@@ -161,15 +151,22 @@ public:
   }
 };
 
+void SrvLocalCompClient() {
+  Server srv;
+
+}
+
 int main(int argc, char *argv[]) {
   opts opt = parse_cl(argc, argv);
 
   if (opt.send) {
+    // receive key and then compute expensiveFunc. Send back Do.
     ServerSWrites server;
     server.start(opt);
   } else if (opt.write) {
-    ServerSWrites server;
-    server.start(opt);
+    check(false, "not implemented");
+  } else {
+    // local computation on client: receive key and Send Di
   }
 
   return 0;

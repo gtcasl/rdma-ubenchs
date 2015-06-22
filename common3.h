@@ -116,8 +116,8 @@ public:
     connParams = {};
     connParams.initiator_depth = 3;
     connParams.responder_resources = 3;
-    connParams.rnr_retry_count = 10;
-    connParams.retry_count = 10;
+    connParams.rnr_retry_count = 3;
+    connParams.retry_count = 3;
     qpAttr = {};
     qpAttr.cap.max_send_wr = 32;
     qpAttr.cap.max_recv_wr = 32;
@@ -560,14 +560,14 @@ void computePrime(uint32_t NumPrime) {
 }
 
 void expensiveFunc() {
-  computePrime(500);
+  computePrime(500); // needs aprox 2885 us to run
 }
 
 struct opts {
   bool send;
   bool write;
-  uint32_t entries;
-  uint32_t MatchingKeys;
+  uint32_t KeysForFunc;
+  uint32_t OutputEntries;
 };
 
 void printTestData(TestData *Data, uint32_t NumEntries) {
@@ -580,7 +580,7 @@ opts parse_cl(int argc, char *argv[]) {
   opts opt = {};
 
   while (1) {
-    int c = getopt(argc, argv, "swe:k:");
+    int c = getopt(argc, argv, "swn:o:");
 
     if (c == -1) {
       break;
@@ -593,18 +593,18 @@ opts parse_cl(int argc, char *argv[]) {
     case 'w':
       opt.write = true; // server writes for Do
       break;
-    case 'e':
+    case 'n':
     {
       std::string str(optarg);
       std::stringstream sstm(str);
-      sstm >> opt.entries;
+      sstm >> opt.KeysForFunc;
       break;
     }
-    case 'k':
+    case 'o':
     {
       std::string str(optarg);
       std::stringstream sstm(str);
-      sstm >> opt.MatchingKeys;
+      sstm >> opt.OutputEntries;
       break;
     }
     default:
@@ -613,11 +613,11 @@ opts parse_cl(int argc, char *argv[]) {
     }
   }
 
-  check((opt.entries != 0), "must provide number of entries");
-  check((opt.MatchingKeys != 0), "matching keys cannot be 0");
+  check((opt.KeysForFunc != 0), "must provide number of KeysForFunc");
+  check((opt.OutputEntries != 0), "matching keys cannot be 0");
 
-  D(std::cout << "number of entries=" << opt.entries << "\n");
-  D(std::cout << "number of matching keys=" << opt.MatchingKeys << "\n");
+  D(std::cout << "number of KeysForFunc=" << opt.KeysForFunc << "\n");
+  D(std::cout << "number of output KeysForFunc=" << opt.OutputEntries << "\n");
 
   return opt;
 }
