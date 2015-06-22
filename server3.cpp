@@ -98,24 +98,6 @@ public:
     rdma_destroy_id(serverId);
     rdma_destroy_event_channel(eventChannel);
   }
-
-  virtual void start(uint32_t entries) {
-    assert(eventChannel != NULL);
-    assert(serverId != NULL);
-
-    HandleConnectRequest();
-    HandleConnectionEstablished();
-
-    SendTD send(protDomain, clientId->qp, entries);
-
-    auto t0 = timer_start();
-    send.exec();
-
-    WaitForCompletion();
-
-    timer_end(t0);
-    HandleDisconnect();
-  }
 };
 
 class ServerSWrites : Server {

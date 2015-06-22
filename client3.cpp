@@ -89,43 +89,6 @@ public:
     rdma_destroy_id(clientId);
     rdma_destroy_event_channel(eventChannel);
   }
-
-  // no filtering is performed at the server. we get the complete buffer.
-  // the server knows there is an incoming request because we issue a connect.
-  // we have to filter once we get the complete data.
-  virtual void start(uint32_t entries) {
-    assert(eventChannel != NULL);
-    assert(clientId != NULL);
-
-    HandleAddrResolved();
-    HandleRouteResolved();
-    Setup();
-
-    TestData *Data = new TestData[entries]();
-
-    check_nn(memReg = ibv_reg_mr(protDomain, (void *) Data, entries * sizeof(TestData),
-                                IBV_ACCESS_REMOTE_WRITE |
-                                IBV_ACCESS_LOCAL_WRITE |
-                                IBV_ACCESS_REMOTE_READ));
-
-    PostWrRecv recvWr((uint64_t) recvBuf, entries * sizeof(TestData),
-                      memReg->lkey, clientId->qp);
-    recvWr.exec();
-
-    Connect();
-    WaitForCompletion();
-
-    // filter in the client, server sent everything in buffer
-    std::vector<TestData> filtered = filterData(1, Data, entries);
-
-    for (std::vector<TestData>::const_iterator i = filtered.begin(),
-         e = filtered.end(); i < e; ++i) {
-      D(std::cout << "key " << (*i).key << "\n");
-    }
-
-    ibv_dereg_mr(memReg);
-    rdma_disconnect(clientId);
-  }
 };
 
 class ClientSWrites : Client {
@@ -136,7 +99,7 @@ public:
   ~ClientSWrites() {
   }
 
-  void start(uint32_t entries) override {
+  void start(uint32_t entries) {
     assert(eventChannel != NULL);
     assert(clientId != NULL);
 

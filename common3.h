@@ -116,6 +116,8 @@ public:
     connParams = {};
     connParams.initiator_depth = 3;
     connParams.responder_resources = 3;
+    connParams.rnr_retry_count = 10;
+    connParams.retry_count = 10;
     qpAttr = {};
     qpAttr.cap.max_send_wr = 32;
     qpAttr.cap.max_recv_wr = 32;
