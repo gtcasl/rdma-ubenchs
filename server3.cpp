@@ -118,30 +118,6 @@ public:
   }
 };
 
-// filtered server.
-class FServer : Server {
-public:
-  // send only relevant data.
-  void start(uint32_t entries) override {
-    assert(eventChannel != NULL);
-    assert(serverId != NULL);
-
-    HandleConnectRequest();
-    HandleConnectionEstablished();
-
-    SendTDFiltered send(protDomain, clientId->qp, entries);
-    send.filter(1);
-
-    auto t0 = timer_start();
-    send.exec();
-
-    WaitForCompletion();
-
-    timer_end(t0);
-    HandleDisconnect();
-  }
-};
-
 class ServerSWrites : Server {
 public:
 
@@ -201,79 +177,15 @@ public:
   }
 };
 
-class ServerCReads : Server {
-public:
-
-  ServerCReads() {
-  }
-
-  ~ServerCReads() {
-  }
-
-  void start(uint32_t entries) override {
-    assert(eventChannel != NULL);
-    assert(serverId != NULL);
-
-    HandleConnectRequest();
-
-    HandleConnectionEstablished();
-
-    SendTDRdma sendRdma(protDomain, clientId->qp, entries);
-    sendRdma.exec();
-
-    WaitForCompletion();
-    HandleDisconnect();
-  }
-};
-
-class ServCReadsFiltered : Server {
-public:
-
-  ServCReadsFiltered() {
-  }
-
-  ~ServCReadsFiltered() {
-  }
-
-  void start(uint32_t entries) override {
-    assert(eventChannel != NULL);
-    assert(serverId != NULL);
-
-    D(std::cout << "RDMA filtered server (filtering occurs at server)\n");
-
-    HandleConnectRequest();
-
-    HandleConnectionEstablished();
-
-    SendSIFilter sendRdma(protDomain, clientId->qp, entries);
-    sendRdma.filter(1);
-    sendRdma.exec();
-
-    WaitForCompletion();
-    HandleDisconnect();
-  }
-};
-
 int main(int argc, char *argv[]) {
   opts opt = parse_cl(argc, argv);
 
-  if (opt.read) {
-    if (opt.filtered) {
-      ServCReadsFiltered server;
-      server.start(opt.entries);
-    } else {
-      ServerCReads server;
-      server.start(opt.entries);
-    }
+  if (opt.send) {
+    ServerSWrites server;
+    server.start(opt);
   } else if (opt.write) {
     ServerSWrites server;
     server.start(opt);
-  } else if (opt.filtered) { // filtered server
-    FServer server;
-    server.start(opt.entries);
-  } else { // unfiltered server
-    Server server;
-    server.start(opt.entries);
   }
 
   return 0;

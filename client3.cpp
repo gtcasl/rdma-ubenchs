@@ -128,46 +128,6 @@ public:
   }
 };
 
-// client for send/recv, receives filtered data
-class ClientFiltered : Client {
-public:
-  virtual void start(uint32_t entries) {
-    assert(eventChannel != NULL);
-    assert(clientId != NULL);
-
-    D(std::cout << "Send/recv filtered data client\n");
-
-    HandleAddrResolved();
-    HandleRouteResolved();
-    Setup();
-
-    recvBuf = (char *) malloc(entries * sizeof(TestData));
-    memset(recvBuf, '\0', entries * sizeof(TestData));
-
-    check_nn(memReg = ibv_reg_mr(protDomain, (void *) recvBuf, entries * sizeof(TestData),
-                                IBV_ACCESS_REMOTE_WRITE |
-                                IBV_ACCESS_LOCAL_WRITE |
-                                IBV_ACCESS_REMOTE_READ));
-
-    PostWrRecv recvWr((uint64_t) recvBuf, entries * sizeof(TestData),
-                      memReg->lkey, clientId->qp);
-    recvWr.exec();
-
-    Connect();
-    WaitForCompletion();
-
-    //for (unsigned i = 0; i < entries; ++i) {
-    //  TestData *entry = (TestData *) (recvBuf + i * sizeof(TestData));
-    //  D(std::cout << "entry " << i << " key " << entry->key << "\n");
-    //}
-
-    free(recvBuf);
-    ibv_dereg_mr(memReg);
-    rdma_disconnect(clientId);
-
-  }
-};
-
 class ClientSWrites : Client {
 public:
   ClientSWrites() {
@@ -221,130 +181,14 @@ public:
   }
 };
 
-class ClientCReads : Client {
-public:
-  void start(uint32_t entries) override {
-    assert(eventChannel != NULL);
-    assert(clientId != NULL);
-
-    HandleAddrResolved();
-    HandleRouteResolved();
-    Setup();
-
-    recvBuf = (char *) malloc(entries * sizeof(TestData));
-    memset(recvBuf, '\0', entries * sizeof(TestData));
-
-    assert((memReg = ibv_reg_mr(protDomain, (void *) recvBuf, entries * sizeof(TestData),
-                                IBV_ACCESS_REMOTE_WRITE |
-                                IBV_ACCESS_LOCAL_WRITE |
-                                IBV_ACCESS_REMOTE_READ)) != NULL);
-
-    // receive RRI
-    RecvSI ReceiveSI(protDomain);
-    ReceiveSI.post(clientId->qp);
-
-    assert(rdma_connect(clientId, &connParams) == 0);
-    assert(rdma_get_cm_event(eventChannel, &event) == 0);
-    assert(event->event == RDMA_CM_EVENT_ESTABLISHED);
-
-    rdma_ack_cm_event(event);
-
-    WaitForCompletion();
-    ReceiveSI.print();
-
-    auto t0 = timer_start();
-
-    // issue RDMA read
-    PostRDMAWrSend rdmaSend((uint64_t) recvBuf, entries * sizeof(TestData), memReg->lkey, clientId->qp,
-                            ReceiveSI.Info->Addr, ReceiveSI.Info->RemoteKey);
-    rdmaSend.exec(true);
-    WaitForCompletion();
-
-    timer_end(t0);
-
-    //for (unsigned i = 0; i < entries; ++i) {
-    //  TestData *entry = (TestData *) (recvBuf + i * sizeof(TestData));
-    //  D(std::cout << "entry " << i << " key " << entry->key << "\n");
-    //}
-
-    free(recvBuf);
-    ibv_dereg_mr(memReg);
-    rdma_disconnect(clientId);
-  }
-};
-
-class ClientCReadsFiltered : Client {
-public:
-  void start(uint32_t entries) override {
-    assert(eventChannel != NULL);
-    assert(clientId != NULL);
-
-    D(std::cout << "RDMA filtered client (filtering occurs at server)\n");
-
-    HandleAddrResolved();
-    HandleRouteResolved();
-    Setup();
-
-    TestData *Data = new TestData[entries]();
-
-    assert((memReg = ibv_reg_mr(protDomain, (void *) Data, entries * sizeof(TestData),
-                                IBV_ACCESS_REMOTE_WRITE |
-                                IBV_ACCESS_LOCAL_WRITE |
-                                IBV_ACCESS_REMOTE_READ)) != NULL);
-
-    // receive RRI
-    RecvSI ReceiveSI(protDomain);
-    ReceiveSI.post(clientId->qp);
-
-    assert(rdma_connect(clientId, &connParams) == 0);
-    assert(rdma_get_cm_event(eventChannel, &event) == 0);
-    assert(event->event == RDMA_CM_EVENT_ESTABLISHED);
-
-    rdma_ack_cm_event(event);
-
-    WaitForCompletion();
-    ReceiveSI.print();
-
-    auto t0 = timer_start();
-
-    // issue RDMA read
-    // TODO: fix assumption of entries / 2
-    PostRDMAWrSend rdmaSend((uint64_t) Data, (entries / 2) * sizeof(TestData), memReg->lkey, clientId->qp,
-                            ReceiveSI.Info->Addr, ReceiveSI.Info->RemoteKey);
-    rdmaSend.exec(true);
-    WaitForCompletion();
-
-    timer_end(t0);
-
-    //for (unsigned i = 0; i < entries; ++i) {
-    //  TestData *entry = (TestData *) (recvBuf + i * sizeof(TestData));
-    //  D(std::cout << "entry " << i << " key " << entry->key << "\n");
-    //}
-
-    ibv_dereg_mr(memReg);
-    rdma_disconnect(clientId);
-  }
-};
-
 int main(int argc, char *argv[]) {
   opts opt = parse_cl(argc, argv);
 
-  if (opt.read) {
-    if (opt.filtered) { // filtered rdma
-      ClientCReadsFiltered client;
-      client.start(opt.entries);
-    } else { // unfiltered rdma
-      ClientCReads client;
-      client.start(opt.entries);
-    }
-  } else if (opt.write) {
+  if (opt.send) {
     ClientSWrites client;
     client.start(opt.entries);
-  } else if (opt.filtered) { // filtered client
-    ClientFiltered client;
-    client.start(opt.entries);
-  } else { // unfiltered client
-    Client client;
+  } else if (opt.write) {
+    ClientSWrites client;
     client.start(opt.entries);
   }
 

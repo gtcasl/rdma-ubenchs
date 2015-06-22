@@ -541,9 +541,8 @@ public:
 
 
 struct opts {
-  bool read;
+  bool send;
   bool write;
-  bool filtered;
   uint32_t entries;
   uint32_t MatchingKeys;
 };
@@ -558,21 +557,18 @@ opts parse_cl(int argc, char *argv[]) {
   opts opt = {};
 
   while (1) {
-    int c = getopt(argc, argv, "rwfe:k:");
+    int c = getopt(argc, argv, "swe:k:");
 
     if (c == -1) {
       break;
     }
 
     switch(c) {
-    case 'r':
-      opt.read = true; // client reads
+    case 's':
+      opt.send = true; // server uses send for Do
       break;
     case 'w':
-      opt.write = true; // server writes
-      break;
-    case 'f':
-      opt.filtered = true;
+      opt.write = true; // server writes for Do
       break;
     case 'e':
     {
@@ -594,10 +590,7 @@ opts parse_cl(int argc, char *argv[]) {
     }
   }
 
-  if (opt.read || opt.write) {
-    check((opt.entries != 0), "must provide number of entries");
-  }
-
+  check((opt.entries != 0), "must provide number of entries");
   check((opt.MatchingKeys != 0), "matching keys cannot be 0");
 
   D(std::cout << "number of entries=" << opt.entries << "\n");
