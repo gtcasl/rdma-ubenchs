@@ -127,7 +127,7 @@ public:
                        clientId->qp);
 
     for (unsigned it = 0; it < 50; ++it) {
-      auto t0 = timer_start();
+
       RecvKey.exec();
 
       // The first time we are here, we have to establish the connection.
@@ -143,10 +143,12 @@ public:
       }
 
       // key can be used from this point forward safely
-
+      auto t0 = timer_start();
+      expensiveFunc();
+      timer_end(t0);
       Do[7] = it * 100;
       SendDo.exec();
-      timer_end(t0);
+
 
       std::cout << "key=" << *Key << "\n";
     }

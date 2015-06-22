@@ -540,7 +540,28 @@ public:
 //  }
 //};
 
+bool isPrime(uint32_t Num) {
+  // inefficient on purpose
+  for (unsigned i = 2; i < Num; ++i) {
+    if (Num % i == 0) {
+      return false;
+    }
+  }
 
+  return true;
+}
+
+void computePrime(uint32_t NumPrime) {
+  for (unsigned i = 2, Found = 0; Found < NumPrime; ++i) {
+    if (isPrime(i)) {
+      Found++;
+    }
+  }
+}
+
+void expensiveFunc() {
+  computePrime(500);
+}
 
 struct opts {
   bool send;
