@@ -90,58 +90,47 @@ public:
   }
 };
 
-class ClientSWrites : Client {
-public:
-  ClientSWrites() {
+void clientServerSends(const opts &opt) {
+  Client Client;
+  Client.HandleAddrResolved();
+  Client.HandleRouteResolved();
+  Client.Setup();
+
+  assert(rdma_connect(Client.clientId, &Client.connParams) == 0);
+  assert(rdma_get_cm_event(Client.eventChannel, &Client.event) == 0);
+  assert(Client.event->event == RDMA_CM_EVENT_ESTABLISHED);
+
+  rdma_ack_cm_event(Client.event);
+
+  uint32_t *Key = new uint32_t();
+  *Key = 15;
+  MemRegion KeyMR(Key, sizeof(uint32_t), Client.protDomain);
+  PostWrSend SendKey((uint64_t) Key, sizeof(uint32_t), KeyMR.getRegion()->lkey,
+                     Client.clientId->qp);
+
+  uint32_t *Do = new uint32_t[opt.OutputEntries]();
+  MemRegion DoMR(Do, sizeof(uint32_t) * opt.OutputEntries, Client.protDomain);
+  PostWrRecv RecvDo((uint64_t) Do, sizeof(uint32_t) * opt.OutputEntries, DoMR.getRegion()->lkey,
+                    Client.clientId->qp);
+
+  for (unsigned it = 0; it < 50; ++it) {
+    auto t0 = timer_start();
+    *Key = it;
+    SendKey.exec();
+
+    RecvDo.exec();
+
+    // We can simply wait for the 2 events
+    Client.WaitForCompletion(2);
+
+    timer_end(t0);
+    std::cout << "Do[" << opt.OutputEntries - 1 << "]=" << Do[opt.OutputEntries - 1] << "\n";
   }
 
-  ~ClientSWrites() {
-  }
-
-  void start(const opts &opt) {
-    assert(eventChannel != NULL);
-    assert(clientId != NULL);
-
-    HandleAddrResolved();
-    HandleRouteResolved();
-    Setup();
-
-    assert(rdma_connect(clientId, &connParams) == 0);
-    assert(rdma_get_cm_event(eventChannel, &event) == 0);
-    assert(event->event == RDMA_CM_EVENT_ESTABLISHED);
-
-    rdma_ack_cm_event(event);
-
-    uint32_t *Key = new uint32_t();
-    *Key = 15;
-    MemRegion KeyMR(Key, sizeof(uint32_t), protDomain);
-    PostWrSend SendKey((uint64_t) Key, sizeof(uint32_t), KeyMR.getRegion()->lkey,
-                       clientId->qp);
-
-    uint32_t *Do = new uint32_t[opt.OutputEntries]();
-    MemRegion DoMR(Do, sizeof(uint32_t) * opt.OutputEntries, protDomain);
-    PostWrRecv RecvDo((uint64_t) Do, sizeof(uint32_t) * opt.OutputEntries, DoMR.getRegion()->lkey,
-                      clientId->qp);
-
-    for (unsigned it = 0; it < 50; ++it) {
-      auto t0 = timer_start();
-      *Key = it;
-      SendKey.exec();
-
-      RecvDo.exec();
-
-      // We can simply wait for the 2 events
-      WaitForCompletion(2);
-
-      timer_end(t0);
-      std::cout << "Do[" << opt.OutputEntries - 1 << "]=" << Do[opt.OutputEntries - 1] << "\n";
-    }
-
-    delete[] Do;
-    delete Key;
-    rdma_disconnect(clientId);
-  }
-};
+  delete[] Do;
+  delete Key;
+  rdma_disconnect(Client.clientId);
+}
 
 void clientLocalCompClient(const opts &opt) {
   Client Client;
@@ -190,8 +179,7 @@ int main(int argc, char *argv[]) {
 
   if (opt.send) {
     // send key and then receive Do.
-    ClientSWrites client;
-    client.start(opt);
+    clientServerSends(opt);
   } else if (opt.write) {
   } else {
     // local computation on client.

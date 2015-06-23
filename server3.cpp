@@ -87,68 +87,56 @@ public:
   }
 };
 
-class ServerSWrites : Server {
-public:
+void srvSend(const opts &opt) {
+  Server Srv;
+  Srv.HandleConnectRequest();
 
-  ServerSWrites() {
-  }
+  uint32_t *Key = new uint32_t();
+  MemRegion KeyMR(Key, sizeof(uint32_t), Srv.protDomain);
+  PostWrRecv RecvKey((uint64_t) Key, sizeof(uint32_t), KeyMR.getRegion()->lkey,
+                     Srv.clientId->qp);
 
-  ~ServerSWrites() {
-  }
+  uint32_t *Do = new uint32_t[opt.OutputEntries]();
+  Do[opt.OutputEntries - 1] = 0x1234;
+  MemRegion DoMR(Do, sizeof(uint32_t) * opt.OutputEntries, Srv.protDomain);
+  PostWrSend SendDo((uint64_t) Do, sizeof(uint32_t) * opt.OutputEntries, DoMR.getRegion()->lkey,
+                     Srv.clientId->qp);
 
-  void start(const opts &opt) {
-    assert(eventChannel != NULL);
-    assert(serverId != NULL);
+  for (unsigned it = 0; it < 50; ++it) {
+    auto t0 = timer_start();
+    RecvKey.exec();
 
-    HandleConnectRequest();
-
-    uint32_t *Key = new uint32_t();
-    MemRegion KeyMR(Key, sizeof(uint32_t), protDomain);
-    PostWrRecv RecvKey((uint64_t) Key, sizeof(uint32_t), KeyMR.getRegion()->lkey,
-                       clientId->qp);
-
-    uint32_t *Do = new uint32_t[opt.OutputEntries]();
-    Do[opt.OutputEntries - 1] = 0x1234;
-    MemRegion DoMR(Do, sizeof(uint32_t) * opt.OutputEntries, protDomain);
-    PostWrSend SendDo((uint64_t) Do, sizeof(uint32_t) * opt.OutputEntries, DoMR.getRegion()->lkey,
-                       clientId->qp);
-
-    for (unsigned it = 0; it < 50; ++it) {
-      auto t0 = timer_start();
-      RecvKey.exec();
-
-      // The first time we are here, we have to establish the connection.
-      // Also, we wait for the key to be received (we need it down below).
-      // In all the other cases, we wait for 2 wr. That is, the Send request from
-      // down below and the Recv req from the beginning of the loop (for the key).
-      // This way we save ourselves from waiting for Do to be sent.
-      if (it == 0) {
-        HandleConnectionEstablished();
-        WaitForCompletion(1);
-      } else {
-        WaitForCompletion(2);
-      }
-
-      // key can be used from this point forward safely
-
-      // assume the function needs a subset A of a large set B to exec. if we were to
-      // run the func locally on the client, we would need to transfer A first.
-      expensiveFunc();
-
-      Do[opt.OutputEntries - 1] = it * 100;
-      SendDo.exec();
-
-      timer_end(t0);
-      std::cout << "key=" << *Key << "\n";
+    // The first time we are here, we have to establish the connection.
+    // Also, we wait for the key to be received (we need it down below).
+    // In all the other cases, we wait for 2 wr. That is, the Send request from
+    // down below and the Recv req from the beginning of the loop (for the key).
+    // This way we save ourselves from waiting for Do to be sent.
+    if (it == 0) {
+      Srv.HandleConnectionEstablished();
+      Srv.WaitForCompletion(1);
+    } else {
+      Srv.WaitForCompletion(2);
     }
 
-    WaitForCompletion(1);
+    // key can be used from this point forward safely
 
-    delete Key;
-    delete[] Do;
-    HandleDisconnect();
+    // assume the function needs a subset A of a large set B to exec. if we were to
+    // run the func locally on the client, we would need to transfer A first.
+    expensiveFunc();
+
+    Do[opt.OutputEntries - 1] = it * 100;
+    SendDo.exec();
+
+    timer_end(t0);
+    std::cout << "key=" << *Key << "\n";
   }
-};
+
+  Srv.WaitForCompletion(1);
+
+  delete Key;
+  delete[] Do;
+  Srv.HandleDisconnect();
+}
 
 void srvLocalCompClient(const opts &opt) {
   // local computation on client: receive key and Send Di
@@ -197,8 +185,7 @@ int main(int argc, char *  argv[]) {
 
   if (opt.send) {
     // receive key and then compute expensiveFunc. Send back Do.
-    ServerSWrites server;
-    server.start(opt);
+    srvSend(opt);
   } else if (opt.write) {
     check(false, "not implemented");
   } else {
