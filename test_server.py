@@ -3,27 +3,26 @@ import optparse
 import sys
 from common import *
 
-def write_rdma(option, opt, value, parser):
-  for entry in ENTRIES:
-    for matching_keys in ENTRIES:
-      if matching_keys >= entry:
-        break;
-
-      cmd = "perf stat -e {3} -x, -r {2} taskset 0x1011 ./server3 -e {0} -w -k {1}".format(entry,
-                                      matching_keys, NUM_REPETITION, PERF_EVENTS)
-      out = exe(cmd)
-      times = get_elapsed(out)
-      print "Num entries={0}, num matching keys={1}, avg={2}".format(entry, matching_keys, avg(times))
-      print "cache-references={0}".format(get_perf_result(out, "cache-references"))
-      print "cache-misses={0}".format(get_perf_result(out, "cache-misses"))
-      print "cycles={0}".format(get_perf_result(out, "cycles"))
-      print "\n"
+def server_sends(option, opt, value, parser):
+  # needed keys don't alter the result of the benchmark because we don't
+  # have to send those to the client. only the output keys have an impact
+  # on the benchmark
+  for output_keys in ENTRIES:
+    cmd = "perf stat -e {0} -x, -r {1} taskset -c 11 ./server3 -s -n 1024 -o {2}".format(
+                                            PERF_EVENTS, NUM_REPETITION, output_keys)
+    out = exe(cmd)
+    times = get_elapsed(out)
+    print "num output keys={0}, avg={1}".format(output_keys, avg(times))
+    print "cache-references={0}".format(get_perf_result(out, "cache-references"))
+    print "cache-misses={0}".format(get_perf_result(out, "cache-misses"))
+    print "cycles={0}".format(get_perf_result(out, "cycles"))
+    print "\n"
 
   sys.exit(0)
 
 def main():
   parser = optparse.OptionParser()
-  parser.add_option('--write-rdma', action='callback', callback=write_rdma)
+  parser.add_option('--server-sends', action='callback', callback=server_sends)
 
   (options, args) = parser.parse_args()
 

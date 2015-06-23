@@ -4,21 +4,20 @@ import sys
 import time
 from common import *
 
-def write_rdma(option, opt, value, parser):
-  for entry in ENTRIES:
-    for matching_keys in ENTRIES:
-      if matching_keys >= entry:
-        break;
-
-      for exp in range(NUM_REPETITION):
-        time.sleep(0.25)
-        exe("./client3 -e {0} -w -k {1}".format(entry, matching_keys))
+def server_sends(option, opt, value, parser):
+  # needed keys don't alter the result of the benchmark because we don't
+  # have to send those to the client. only the output keys have an impact
+  # on the benchmark
+  for output_keys in ENTRIES:
+    for exp in range(NUM_REPETITION):
+      time.sleep(0.25)
+      exe("./client3 -s -n 1024 -o {0}".format(output_keys))
 
   sys.exit(0)
 
 def main():
   parser = optparse.OptionParser()
-  parser.add_option('--write-rdma', action='callback', callback=write_rdma)
+  parser.add_option('--server-sends', action='callback', callback=server_sends)
 
   (options, args) = parser.parse_args()
 
