@@ -138,6 +138,64 @@ void srvSend(const opts &opt) {
   Srv.HandleDisconnect();
 }
 
+void srvWrite(const opts &opt) {
+  Server Srv;
+  Srv.HandleConnectRequest();
+
+  uint32_t *Key = new uint32_t();
+  MemRegion KeyMR(Key, sizeof(uint32_t), Srv.protDomain);
+  PostWrRecv RecvKey((uint64_t) Key, sizeof(uint32_t), KeyMR.getRegion()->lkey,
+                     Srv.clientId->qp);
+
+  uint32_t *Do = new uint32_t[opt.OutputEntries]();
+  size_t WriteSize = opt.OutputEntries * sizeof(uint32_t);
+  Do[opt.OutputEntries - 1] = 0x1234;
+  MemRegion DoMR(Do, WriteSize, Srv.protDomain);
+  Sge WriteSGE((uint64_t) Do, WriteSize, DoMR.getRegion()->lkey);
+  SendWR WriteWR(WriteSGE);
+  WriteWR.setOpcode(IBV_WR_RDMA_WRITE);
+
+  SendWR ZeroWR;
+  ZeroWR.setOpcode(IBV_WR_SEND);
+
+  RecvSI RecvSI(Srv.protDomain);
+  RecvSI.post(Srv.clientId->qp);
+
+  for (unsigned it = 0; it < 50; ++it) {
+    auto t0 = timer_start();
+    RecvKey.exec();
+
+    // The first time we are here, we have to establish the connection.
+    if (it == 0)
+      Srv.HandleConnectionEstablished();
+
+    Srv.WaitForCompletion(2);
+
+    // key can be used from this point forward safely
+
+    // assume the function needs a subset A of a large set B to exec. if we were to
+    // run the func locally on the client, we would need to transfer A first.
+    expensiveFunc();
+
+    Do[opt.OutputEntries - 1] = it * 100;
+
+    // only need to set the RecvSI info the first time
+    if (it == 0)
+      WriteWR.setRdma(RecvSI.Info->Addr, RecvSI.Info->RemoteKey);
+
+    WriteWR.post(Srv.clientId->qp);
+    ZeroWR.post(Srv.clientId->qp);
+
+    timer_end(t0);
+    std::cout << "key=" << *Key << "\n";
+  }
+
+  Srv.WaitForCompletion(1);
+
+  delete Key;
+  delete[] Do;
+  Srv.HandleDisconnect();
+}
 void srvLocalCompClient(const opts &opt) {
   // local computation on client: receive key and Send Di
   Server Srv;
@@ -187,7 +245,7 @@ int main(int argc, char *  argv[]) {
     // receive key and then compute expensiveFunc. Send back Do.
     srvSend(opt);
   } else if (opt.write) {
-    check(false, "not implemented");
+    srvWrite(opt);
   } else {
     // local computation on client: receive key and Send Di
     srvLocalCompClient(opt);

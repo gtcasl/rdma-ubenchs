@@ -132,6 +132,50 @@ void clientServerSends(const opts &opt) {
   rdma_disconnect(Client.clientId);
 }
 
+void clientServerWrites(const opts &opt) {
+  Client Client;
+  Client.HandleAddrResolved();
+  Client.HandleRouteResolved();
+  Client.Setup();
+
+  assert(rdma_connect(Client.clientId, &Client.connParams) == 0);
+  assert(rdma_get_cm_event(Client.eventChannel, &Client.event) == 0);
+  assert(Client.event->event == RDMA_CM_EVENT_ESTABLISHED);
+
+  rdma_ack_cm_event(Client.event);
+
+  uint32_t *Key = new uint32_t();
+  *Key = 15;
+  MemRegion KeyMR(Key, sizeof(uint32_t), Client.protDomain);
+  PostWrSend SendKey((uint64_t) Key, sizeof(uint32_t), KeyMR.getRegion()->lkey,
+                     Client.clientId->qp);
+
+  uint32_t *Do = new uint32_t[opt.OutputEntries]();
+  MemRegion DoMR(Do, sizeof(uint32_t) * opt.OutputEntries, Client.protDomain);
+  SendSI SendSI(Do, DoMR.getRegion(), Client.protDomain);
+  SendSI.post(Client.clientId->qp);
+  ibv_recv_wr ZeroRecv = {};
+  Client.WaitForCompletion(1);
+
+  for (unsigned it = 0; it < 50; ++it) {
+    auto t0 = timer_start();
+    *Key = it;
+
+    SendKey.exec();
+    check_z(ibv_post_recv(Client.clientId->qp, &ZeroRecv, NULL));
+
+    // We can simply wait for the 2 events
+    Client.WaitForCompletion(2);
+
+    timer_end(t0);
+    std::cout << "Do[" << opt.OutputEntries - 1 << "]=" << Do[opt.OutputEntries - 1] << "\n";
+  }
+
+  delete[] Do;
+  delete Key;
+  rdma_disconnect(Client.clientId);
+}
+
 void clientLocalCompClient(const opts &opt) {
   Client Client;
   Client.HandleAddrResolved();
@@ -181,6 +225,7 @@ int main(int argc, char *argv[]) {
     // send key and then receive Do.
     clientServerSends(opt);
   } else if (opt.write) {
+    clientServerWrites(opt);
   } else {
     // local computation on client.
     // send key and receive Di. then execute expensiveFunc.

@@ -41,7 +41,6 @@ struct Sge {
 struct SetupInfo {
   uint64_t Addr;
   uint32_t RemoteKey;
-  uint32_t ReqKey;
 };
 
 inline void check(bool b, const std::string &msg) {
@@ -351,7 +350,6 @@ public:
 
     Info->Addr = (uint64_t) buf;
     Info->RemoteKey = bufMemReg->rkey;
-    Info->ReqKey = 1;
 
     MR = new MemRegion(Info, sizeof(SetupInfo), protDomain);
   }
@@ -367,7 +365,6 @@ public:
 
     D(std::cerr << "Sent addr=" << std::hex << Info->Addr << "\n");
     D(std::cerr << "Sent remote key=" << std::dec << Info->RemoteKey << "\n");
-    D(std::cerr << "Sent req key=" << Info->ReqKey << "\n");
   }
 };
 
@@ -399,7 +396,6 @@ public:
   void print() {
     D(std::cout << "Client addr=" << std::hex << Info->Addr << std::dec << "\n");
     D(std::cout << "Client remote key=" << Info->RemoteKey << "\n");
-    D(std::cout << "Client req key=" << Info->ReqKey << "\n");
   }
 };
 
