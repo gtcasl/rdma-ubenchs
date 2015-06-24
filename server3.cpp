@@ -236,6 +236,11 @@ void srvLocalCompClient(const opts &opt) {
     std::cout << "key=" << *Key << "\n";
   }
 
+  Srv.WaitForCompletion(1);
+
+  delete Key;
+  delete[] Di;
+  Srv.HandleDisconnect();
 }
 
 int main(int argc, char *  argv[]) {
