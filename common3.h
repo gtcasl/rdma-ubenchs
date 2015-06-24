@@ -561,6 +561,7 @@ void expensiveFunc() {
 struct opts {
   bool send;
   bool write;
+  bool Read;
   uint32_t KeysForFunc;
   uint32_t OutputEntries;
 };
@@ -575,7 +576,7 @@ opts parse_cl(int argc, char *argv[]) {
   opts opt = {};
 
   while (1) {
-    int c = getopt(argc, argv, "swn:o:");
+    int c = getopt(argc, argv, "swrn:o:");
 
     if (c == -1) {
       break;
@@ -587,6 +588,9 @@ opts parse_cl(int argc, char *argv[]) {
       break;
     case 'w':
       opt.write = true; // server writes for Do
+      break;
+    case 'r':
+      opt.Read = true; // client reads Di
       break;
     case 'n':
     {

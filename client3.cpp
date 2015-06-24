@@ -218,6 +218,51 @@ void clientLocalCompClient(const opts &opt) {
   rdma_disconnect(Client.clientId);
 }
 
+void clientReads(const opts &opt) {
+  Client Client;
+  Client.HandleAddrResolved();
+  Client.HandleRouteResolved();
+  Client.Setup();
+
+  assert(rdma_connect(Client.clientId, &Client.connParams) == 0);
+  assert(rdma_get_cm_event(Client.eventChannel, &Client.event) == 0);
+  assert(Client.event->event == RDMA_CM_EVENT_ESTABLISHED);
+
+  rdma_ack_cm_event(Client.event);
+
+  RecvSI RecvSI(Client.protDomain);
+
+  uint32_t *Di = new uint32_t[opt.KeysForFunc]();
+  size_t ReadSize = opt.KeysForFunc * sizeof(uint32_t);
+  MemRegion DiMR(Di, ReadSize, Client.protDomain);
+  Sge ReadSGE((uint64_t) Di, ReadSize, DiMR.getRegion()->lkey);
+  SendWR ReadWR(ReadSGE);
+  ReadWR.setOpcode(IBV_WR_RDMA_READ);
+
+  SendWR ZeroWR;
+  ZeroWR.setOpcode(IBV_WR_SEND);
+
+  RecvSI.post(Client.clientId->qp);
+  Client.WaitForCompletion(1);
+  RecvSI.print();
+
+  ReadWR.setRdma(RecvSI.Info->Addr, RecvSI.Info->RemoteKey);
+
+  for (unsigned it = 0; it < 50; ++it) {
+    auto t0 = timer_start();
+    ReadWR.post(Client.clientId->qp);
+    ZeroWR.post(Client.clientId->qp);
+
+    Client.WaitForCompletion(2);
+    expensiveFunc();
+    timer_end(t0);
+    std::cout << "Di[" << opt.KeysForFunc - 1 << "]=" << Di[opt.KeysForFunc - 1] << "\n";
+  }
+
+  delete[] Di;
+  rdma_disconnect(Client.clientId);
+}
+
 int main(int argc, char *argv[]) {
   opts opt = parse_cl(argc, argv);
 
@@ -226,6 +271,8 @@ int main(int argc, char *argv[]) {
     clientServerSends(opt);
   } else if (opt.write) {
     clientServerWrites(opt);
+  } else if (opt.Read) {
+    clientReads(opt);
   } else {
     // local computation on client.
     // send key and receive Di. then execute expensiveFunc.

@@ -196,6 +196,7 @@ void srvWrite(const opts &opt) {
   delete[] Do;
   Srv.HandleDisconnect();
 }
+
 void srvLocalCompClient(const opts &opt) {
   // local computation on client: receive key and Send Di
   Server Srv;
@@ -243,6 +244,36 @@ void srvLocalCompClient(const opts &opt) {
   Srv.HandleDisconnect();
 }
 
+void srvClientReads(const opts &opt) {
+  Server Srv;
+  Srv.HandleConnectRequest();
+
+  // setup Di buffer, send SI of it
+  uint32_t *Di = new uint32_t[opt.KeysForFunc]();
+  Di[opt.KeysForFunc - 1] = 0x1234;
+  MemRegion DiMR(Di, sizeof(uint32_t) * opt.KeysForFunc, Srv.protDomain);
+  SendSI SendSI(Di, DiMR.getRegion(), Srv.protDomain);
+
+  ibv_recv_wr ZeroRecv = {};
+
+  SendSI.post(Srv.clientId->qp);
+  Srv.HandleConnectionEstablished();
+  Srv.WaitForCompletion(1);
+
+  for (unsigned it = 0; it < 50; ++it) {
+    auto t0 = timer_start();
+    Di[opt.KeysForFunc - 1] = it * 100;
+
+    check_z(ibv_post_recv(Srv.clientId->qp, &ZeroRecv, NULL));
+    Srv.WaitForCompletion(1);
+
+    timer_end(t0);
+  }
+
+  delete[] Di;
+  Srv.HandleDisconnect();
+}
+
 int main(int argc, char *  argv[]) {
   opts opt = parse_cl(argc, argv);
 
@@ -251,6 +282,8 @@ int main(int argc, char *  argv[]) {
     srvSend(opt);
   } else if (opt.write) {
     srvWrite(opt);
+  } else if (opt.Read) {
+    srvClientReads(opt);
   } else {
     // local computation on client: receive key and Send Di
     srvLocalCompClient(opt);
