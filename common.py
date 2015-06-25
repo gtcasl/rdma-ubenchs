@@ -2,7 +2,7 @@ import subprocess
 import re
 
 NUM_REPETITION = 10
-ENTRIES = [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768]
+ENTRIES = [4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768]
 PERF_EVENTS = ("cache-references,cache-misses,task-clock,context-switches,"
               "cpu-migrations,page-faults,cycles,instructions,branch-misses,branches")
 
@@ -37,7 +37,12 @@ def get_elapsed(buf):
 
   return res
 
-def get_perf_result(buf, needle):
+def perf_avg(buf, needle):
   regex = '^([0-9]+),{0}'.format(needle)
+  res = re.search(regex, buf, re.MULTILINE)
+  return res.group(1)
+
+def perf_stdev(buf, needle):
+  regex = '^[0-9]+,{0},([0-9]+\.[0-9]+)'.format(needle)
   res = re.search(regex, buf, re.MULTILINE)
   return res.group(1)

@@ -102,7 +102,7 @@ void srvSend(const opts &opt) {
   PostWrSend SendDo((uint64_t) Do, sizeof(uint32_t) * opt.OutputEntries, DoMR.getRegion()->lkey,
                      Srv.clientId->qp);
 
-  for (unsigned it = 0; it < 50; ++it) {
+  for (unsigned it = 0; it < NUM_REP; ++it) {
     auto t0 = timer_start();
     RecvKey.exec();
 
@@ -161,7 +161,7 @@ void srvWrite(const opts &opt) {
   RecvSI RecvSI(Srv.protDomain);
   RecvSI.post(Srv.clientId->qp);
 
-  for (unsigned it = 0; it < 50; ++it) {
+  for (unsigned it = 0; it < NUM_REP; ++it) {
     auto t0 = timer_start();
     RecvKey.exec();
 
@@ -213,7 +213,7 @@ void srvLocalCompClient(const opts &opt) {
   PostWrSend SendDi((uint64_t) Di, sizeof(uint32_t) * opt.KeysForFunc, DiMR.getRegion()->lkey,
                      Srv.clientId->qp);
 
-  for (unsigned it = 0; it < 50; ++it) {
+  for (unsigned it = 0; it < NUM_REP; ++it) {
     auto t0 = timer_start();
     RecvKey.exec();
 
@@ -260,7 +260,7 @@ void srvClientReads(const opts &opt) {
   Srv.HandleConnectionEstablished();
   Srv.WaitForCompletion(1);
 
-  for (unsigned it = 0; it < 50; ++it) {
+  for (unsigned it = 0; it < NUM_REP; ++it) {
     auto t0 = timer_start();
     Di[opt.KeysForFunc - 1] = it * 100;
 

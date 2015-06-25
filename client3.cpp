@@ -113,7 +113,7 @@ void clientServerSends(const opts &opt) {
   PostWrRecv RecvDo((uint64_t) Do, sizeof(uint32_t) * opt.OutputEntries, DoMR.getRegion()->lkey,
                     Client.clientId->qp);
 
-  for (unsigned it = 0; it < 50; ++it) {
+  for (unsigned it = 0; it < NUM_REP; ++it) {
     auto t0 = timer_start();
     *Key = it;
     SendKey.exec();
@@ -157,7 +157,7 @@ void clientServerWrites(const opts &opt) {
   ibv_recv_wr ZeroRecv = {};
   Client.WaitForCompletion(1);
 
-  for (unsigned it = 0; it < 50; ++it) {
+  for (unsigned it = 0; it < NUM_REP; ++it) {
     auto t0 = timer_start();
     *Key = it;
 
@@ -199,7 +199,7 @@ void clientLocalCompClient(const opts &opt) {
   PostWrRecv RecvDi((uint64_t) Di, sizeof(uint32_t) * opt.KeysForFunc, DiMR.getRegion()->lkey,
                     Client.clientId->qp);
 
-  for (unsigned it = 0; it < 50; ++it) {
+  for (unsigned it = 0; it < NUM_REP; ++it) {
     auto t0 = timer_start();
     *Key = it;
     SendKey.exec();
@@ -248,7 +248,7 @@ void clientReads(const opts &opt) {
 
   ReadWR.setRdma(RecvSI.Info->Addr, RecvSI.Info->RemoteKey);
 
-  for (unsigned it = 0; it < 50; ++it) {
+  for (unsigned it = 0; it < NUM_REP; ++it) {
     auto t0 = timer_start();
     ReadWR.post(Client.clientId->qp);
     ZeroWR.post(Client.clientId->qp);

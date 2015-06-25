@@ -1,6 +1,7 @@
 #!/usr/bin/python
 import optparse
 import sys
+import time
 from common import *
 
 def server_sends(option, opt, value, parser):
@@ -13,9 +14,9 @@ def server_sends(option, opt, value, parser):
     out = exe(cmd)
     times = get_elapsed(out)
     print "num output keys={0}, avg={1}".format(output_keys, avg(times))
-    print "cache-references={0}".format(get_perf_result(out, "cache-references"))
-    print "cache-misses={0}".format(get_perf_result(out, "cache-misses"))
-    print "cycles={0}".format(get_perf_result(out, "cycles"))
+    print "cache-references={0}".format(perf_avg(out, "cache-references"))
+    print "cache-misses={0}".format(perf_avg(out, "cache-misses"))
+    print "cycles={0}".format(perf_avg(out, "cycles"))
     print "\n"
 
   sys.exit(0)
@@ -30,9 +31,9 @@ def server_writes(option, opt, value, parser):
     out = exe(cmd)
     times = get_elapsed(out)
     print "num output keys={0}, avg={1}".format(output_keys, avg(times))
-    print "cache-references={0}".format(get_perf_result(out, "cache-references"))
-    print "cache-misses={0}".format(get_perf_result(out, "cache-misses"))
-    print "cycles={0}".format(get_perf_result(out, "cycles"))
+    print "cache-references={0}".format(perf_avg(out, "cache-references"))
+    print "cache-misses={0}".format(perf_avg(out, "cache-misses"))
+    print "cycles={0}".format(perf_avg(out, "cycles"))
     print "\n"
 
   sys.exit(0)
@@ -47,9 +48,9 @@ def client_computes(option, opt, value, parser):
     out = exe(cmd)
     times = get_elapsed(out)
     print "num needed keys={0}, avg={1}".format(needed_keys, avg(times))
-    print "cache-references={0}".format(get_perf_result(out, "cache-references"))
-    print "cache-misses={0}".format(get_perf_result(out, "cache-misses"))
-    print "cycles={0}".format(get_perf_result(out, "cycles"))
+    print "cache-references={0}".format(perf_avg(out, "cache-references"))
+    print "cache-misses={0}".format(perf_avg(out, "cache-misses"))
+    print "cycles={0}".format(perf_avg(out, "cycles"))
     print "\n"
 
   sys.exit(0)

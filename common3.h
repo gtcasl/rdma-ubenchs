@@ -19,6 +19,8 @@ typedef std::chrono::high_resolution_clock Time;
 typedef std::chrono::microseconds microsec;
 typedef std::chrono::duration<float> dsec;
 
+const unsigned NUM_REP = 1000;
+
 struct TestData {
   uint64_t key;
 };

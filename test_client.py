@@ -31,9 +31,18 @@ def client_computes(option, opt, value, parser):
   # have to send those to the client. only the needed keys have an impact
   # on the benchmark
   for needed_keys in ENTRIES:
-    for exp in range(NUM_REPETITION):
-      time.sleep(0.25)
-      exe("./client3 -n 1024 -n {0} -o 1024".format(needed_keys))
+    time.sleep(0.25)
+    out = exe("perf stat -e {0} -x, -r {1} taskset -c 11 ./client3 -n {2} -o 1024".format(
+                                      PERF_EVENTS, NUM_REPETITION, needed_keys))
+    times = get_elapsed(out)
+    print "num needed keys={0}, avg={1}".format(needed_keys, avg(times))
+    print "cache-references={0}, stdev={1}".format(perf_avg(out, "cache-references"),
+                                                  perf_stdev(out, "cache-references"))
+    print "cache-misses={0}, stdev={1}".format(perf_avg(out, "cache-misses"),
+                                    perf_stdev(out, "cache-misses"))
+    print "cycles={0}, stdev={1}".format(perf_avg(out, "cycles"),
+                              perf_stdev(out, "cycles"))
+    print "\n"
 
   sys.exit(0)
 
