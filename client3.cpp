@@ -254,13 +254,19 @@ void clientReads(const opts &opt) {
     perf.start();
 
     ReadWR.post(Client.clientId->qp);
+
+    Client.WaitForCompletion(1);
     ZeroWR.post(Client.clientId->qp);
 
-    Client.WaitForCompletion(2);
+    Client.WaitForCompletion(1);
     expensiveFunc();
 
     perf.stop();
-    std::cout << "Di[" << opt.KeysForFunc - 1 << "]=" << Di[opt.KeysForFunc - 1] << "\n";
+
+    if (Di[opt.KeysForFunc - 1] != it * 100) {
+      std::cout << "it=" << it << "Di=" << Di[opt.KeysForFunc - 1] << "\n";
+      check(false, "data mismatch");
+    }
   }
 
   delete[] Di;
