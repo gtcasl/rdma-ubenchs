@@ -9,6 +9,10 @@
 #include <string>
 #include <vector>
 
+#include <sys/ioctl.h>
+#include <linux/perf_event.h>
+#include <asm/unistd.h>
+
 #ifndef REL
 #define D(x) x
 #else
@@ -361,6 +365,115 @@ public:
   void print() {
     D(std::cout << "Client addr=" << std::hex << Info->Addr << std::dec << "\n");
     D(std::cout << "Client remote key=" << Info->RemoteKey << "\n");
+  }
+};
+
+enum Measure { INSTRS, CYCLES, CACHEMISSES, TIME };
+
+class Perf {
+
+public:
+  Perf(Measure M) : FD(0), M(M) {}
+
+  ~Perf() {}
+
+  void start() {
+    switch(M) {
+      case INSTRS:
+        startEvent(PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS);
+        break;
+      case CYCLES:
+        startEvent(PERF_TYPE_HARDWARE, PERF_COUNT_HW_CPU_CYCLES);
+        break;
+      case CACHEMISSES:
+        startEvent(PERF_TYPE_HARDWARE, PERF_COUNT_HW_CACHE_MISSES);
+        break;
+      case TIME:
+        startTime();
+        break;
+      default:
+        check(0, "invalid case");
+    }
+  }
+
+  void stop() {
+    switch(M) {
+      case INSTRS:
+      {
+        long long Instrs = stopEvent();
+        print("instrs", Instrs);
+        break;
+      }
+      case CYCLES:
+      {
+        long long Cycles = stopEvent();
+        print("cycles", Cycles);
+        break;
+      }
+      case CACHEMISSES:
+      {
+        long long CM = stopEvent();
+        print("cachemisses", CM);
+        break;
+      }
+      case TIME:
+      {
+        microsec Duration = stopTime();
+        print("time", Duration.count());
+        break;
+      }
+      default:
+        check(0, "invalid case");
+    }
+
+  }
+
+  void startTime() {
+    TimeStart = Time::now();
+  }
+
+  microsec stopTime() {
+    Time::time_point TimeEnd = Time::now();
+    dsec duration = TimeEnd - TimeStart;
+    return std::chrono::duration_cast<microsec>(duration);
+  }
+
+  void print(std::string const &label, long long const &num) {
+    std::cout << label << ": " << num << "\n";
+  }
+
+  void startEvent(uint32_t type, uint64_t config) {
+    struct perf_event_attr pe = {};
+
+    pe.type = type;
+    pe.size = sizeof(struct perf_event_attr);
+    pe.config = config;
+    pe.disabled = 1;
+
+    FD = perfEventOpen(&pe, 0, -1, -1, 0);
+
+    check(FD != -1, "error opening leader pe.config");
+
+    ioctl(FD, PERF_EVENT_IOC_RESET, 0);
+    ioctl(FD, PERF_EVENT_IOC_ENABLE, 0);
+  }
+
+  long long stopEvent() {
+    long long count;
+    ioctl(FD, PERF_EVENT_IOC_DISABLE, 0);
+    read(FD, &count, sizeof(long long));
+    close(FD);
+    return count;
+  }
+
+protected:
+  int FD;
+  Measure M;
+  Time::time_point TimeStart;
+
+  long perfEventOpen(struct perf_event_attr *hw_event, pid_t pid,
+                     int cpu, int group_fd, unsigned long flags) {
+    return syscall(__NR_perf_event_open, hw_event, pid, cpu, group_fd, flags);
   }
 };
 

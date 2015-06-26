@@ -248,14 +248,18 @@ void clientReads(const opts &opt) {
 
   ReadWR.setRdma(RecvSI.Info->Addr, RecvSI.Info->RemoteKey);
 
+  Perf perf(Measure::TIME);
+
   for (unsigned it = 0; it < NUM_REP; ++it) {
-    auto t0 = timer_start();
+    perf.start();
+
     ReadWR.post(Client.clientId->qp);
     ZeroWR.post(Client.clientId->qp);
 
     Client.WaitForCompletion(2);
     expensiveFunc();
-    timer_end(t0);
+
+    perf.stop();
     std::cout << "Di[" << opt.KeysForFunc - 1 << "]=" << Di[opt.KeysForFunc - 1] << "\n";
   }
 
