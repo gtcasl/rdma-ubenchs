@@ -1,8 +1,8 @@
 import subprocess
 import re
 
-NUM_REPETITION = 10
-ENTRIES = [4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768]
+NUM_REPETITION = 20
+ENTRIES = [4, 16, 64, 256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304]
 PERF_EVENTS = ("cache-references,cache-misses,task-clock,context-switches,"
               "cpu-migrations,page-faults,cycles,instructions,branch-misses,branches")
 
