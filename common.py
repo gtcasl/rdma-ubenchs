@@ -1,7 +1,7 @@
 import subprocess
 import re
 
-NUM_REPETITION = 20
+NUM_REPETITION = 1
 ENTRIES = [4, 16, 64, 256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304]
 PERF_EVENTS = ("cache-references,cache-misses,task-clock,context-switches,"
               "cpu-migrations,page-faults,cycles,instructions,branch-misses,branches")
@@ -26,11 +26,11 @@ def avg(nums):
 
   return sum / len(nums)
 
-def get_elapsed(buf):
+def get_times(buf):
   res = []
 
   for line in buf.split("\n"):
-    if "elapsed time" in line:
+    if "time" in line:
       for token in line.split():
         if is_int(token):
           res.append(int(token))
@@ -46,3 +46,12 @@ def perf_stdev(buf, needle):
   regex = '^[0-9]+,{0},([0-9]+\.[0-9]+)'.format(needle)
   res = re.search(regex, buf, re.MULTILINE)
   return res.group(1)
+
+def print_stats(needed_keys, measure, out):
+  print "num needed keys={0}".format(needed_keys)
+
+  if measure == "time":
+    times = get_times(out)
+    print "avg time={0}".format(avg(times))
+
+  print "\n"

@@ -24,6 +24,7 @@ typedef std::chrono::microseconds microsec;
 typedef std::chrono::duration<float> dsec;
 
 const unsigned NUM_REP = 500;
+const unsigned NUM_WARMUP = 5;
 
 struct TestData {
   uint64_t key;
@@ -506,6 +507,7 @@ struct opts {
   bool Read;
   uint32_t KeysForFunc;
   uint32_t OutputEntries;
+  enum Measure Measure;
 };
 
 void printTestData(TestData *Data, uint32_t NumEntries) {
@@ -518,7 +520,7 @@ opts parse_cl(int argc, char *argv[]) {
   opts opt = {};
 
   while (1) {
-    int c = getopt(argc, argv, "swrn:o:");
+    int c = getopt(argc, argv, "swrn:o:m:");
 
     if (c == -1) {
       break;
@@ -548,6 +550,22 @@ opts parse_cl(int argc, char *argv[]) {
       sstm >> opt.OutputEntries;
       break;
     }
+    case 'm':
+    {
+      std::string str(optarg);
+
+      if (str == "time") {
+        opt.Measure = Measure::TIME;
+      } else if (str == "cycles") {
+        opt.Measure = Measure::CYCLES;
+      } else if (str == "cachemisses") {
+        opt.Measure = Measure::CACHEMISSES;
+      } else {
+        check(false, "invalid measure");
+      }
+
+      break;
+    }
     default:
       std::cerr << "Invalid option" << "\n";
       check_z(1);
@@ -556,6 +574,7 @@ opts parse_cl(int argc, char *argv[]) {
 
   check((opt.KeysForFunc != 0), "must provide number of KeysForFunc");
   check((opt.OutputEntries != 0), "matching keys cannot be 0");
+  check(opt.Measure != 0, "must select desired measure");
 
   D(std::cout << "number of KeysForFunc=" << opt.KeysForFunc << "\n");
   D(std::cout << "number of output KeysForFunc=" << opt.OutputEntries << "\n");

@@ -199,17 +199,33 @@ void clientLocalCompClient(const opts &opt) {
   PostWrRecv RecvDi((uint64_t) Di, sizeof(uint32_t) * opt.KeysForFunc, DiMR.getRegion()->lkey,
                     Client.clientId->qp);
 
+  // WARM UP
+  for (unsigned it = 0; it < NUM_WARMUP; ++it) {
+    *Key = it;
+    SendKey.exec();
+    RecvDi.exec();
+    Client.WaitForCompletion(2);
+    std::cout << "Warm up " << it << "\n";
+  }
+
+  Perf perf(opt.Measure);
+  // REAL BENCHMARK
   for (unsigned it = 0; it < NUM_REP; ++it) {
-    auto t0 = timer_start();
+    perf.start();
     *Key = it;
     SendKey.exec();
 
     RecvDi.exec();
 
-    // We can simply wait for the 2 events
     Client.WaitForCompletion(2);
     expensiveFunc();
-    timer_end(t0);
+    perf.stop();
+
+    if (Di[opt.KeysForFunc - 1] != it * 100) {
+      std::cout << "it=" << it << "Di=" << Di[opt.KeysForFunc - 1] << "\n";
+      check(false, "data mismatch");
+    }
+
     std::cout << "Di[" << opt.KeysForFunc - 1 << "]=" << Di[opt.KeysForFunc - 1] << "\n";
   }
 
@@ -248,7 +264,7 @@ void clientReads(const opts &opt) {
 
   ReadWR.setRdma(RecvSI.Info->Addr, RecvSI.Info->RemoteKey);
 
-  Perf perf(Measure::TIME);
+  Perf perf(opt.Measure);
 
   for (unsigned it = 0; it < NUM_REP; ++it) {
     perf.start();

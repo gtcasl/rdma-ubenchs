@@ -213,8 +213,8 @@ void srvLocalCompClient(const opts &opt) {
   PostWrSend SendDi((uint64_t) Di, sizeof(uint32_t) * opt.KeysForFunc, DiMR.getRegion()->lkey,
                      Srv.clientId->qp);
 
-  for (unsigned it = 0; it < NUM_REP; ++it) {
-    auto t0 = timer_start();
+  // WARM UP
+  for (unsigned it = 0; it < NUM_WARMUP; ++it) {
     RecvKey.exec();
 
     // The first time we are here, we have to establish the connection.
@@ -229,11 +229,24 @@ void srvLocalCompClient(const opts &opt) {
       Srv.WaitForCompletion(2);
     }
 
+    SendDi.exec();
+    std::cout << "Warm up " << it << "\n";
+  }
+
+  Perf perf(opt.Measure);
+
+  // REAL BENCHMARK
+  for (unsigned it = 0; it < NUM_REP; ++it) {
+    perf.start();
+    RecvKey.exec();
+
+    Srv.WaitForCompletion(2);
+
     // key can be used from this point forward safely
 
     Di[opt.KeysForFunc - 1] = it * 100;
     SendDi.exec();
-    timer_end(t0);
+    perf.stop();
     std::cout << "key=" << *Key << "\n";
   }
 
