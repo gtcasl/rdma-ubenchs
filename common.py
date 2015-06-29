@@ -1,10 +1,9 @@
 import subprocess
 import re
+import math
 
 NUM_REPETITION = 1
-ENTRIES = [4, 16, 64, 256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304]
-PERF_EVENTS = ("cache-references,cache-misses,task-clock,context-switches,"
-              "cpu-migrations,page-faults,cycles,instructions,branch-misses,branches")
+ENTRIES = [4, 16, 64, 256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216, 67108864]
 
 def exe(cmdline):
   print "executing: " + cmdline
@@ -24,34 +23,43 @@ def avg(nums):
   for num in nums:
     sum = sum + num
 
-  return sum / len(nums)
+  return sum / float(len(nums))
 
-def get_times(buf):
+def std_dev(nums, avg):
+  sum = 0
+  for n in nums:
+    sum = sum + math.pow(n - avg, 2)
+
+  sample_var = sum / float((len(nums) - 1))
+  return math.sqrt(sample_var)
+
+def extract_nums(buf, label):
   res = []
 
   for line in buf.split("\n"):
-    if "time" in line:
+    if label in line:
       for token in line.split():
         if is_int(token):
           res.append(int(token))
 
   return res
 
-def perf_avg(buf, needle):
-  regex = '^([0-9]+),{0}'.format(needle)
-  res = re.search(regex, buf, re.MULTILINE)
-  return res.group(1)
-
-def perf_stdev(buf, needle):
-  regex = '^[0-9]+,{0},([0-9]+\.[0-9]+)'.format(needle)
-  res = re.search(regex, buf, re.MULTILINE)
-  return res.group(1)
-
 def print_stats(needed_keys, measure, out):
   print "num needed keys={0}".format(needed_keys)
 
   if measure == "time":
-    times = get_times(out)
-    print "avg time={0}".format(avg(times))
+    times = extract_nums(out, "time")
+    average = avg(times)
+    print "avg time={0}, sample std dev={1}".format(average, std_dev(times, average))
+  elif measure == "cycles":
+    cycles = extract_nums(out, "cycles")
+    average = avg(cycles)
+    print "avg cycles={0}, sample std dev={1}".format(average, std_dev(cycles, average))
+  elif measure == "cachemisses":
+    misses = extract_nums(out, "cachemisses")
+    average = avg(misses)
+    print "avg misses={0}, sample std dev={1}".format(average, std_dev(misses, average))
+  else:
+    raise LookupError("Measure not supported")
 
   print "\n"

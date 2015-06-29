@@ -213,6 +213,8 @@ void srvLocalCompClient(const opts &opt) {
   PostWrSend SendDi((uint64_t) Di, sizeof(uint32_t) * opt.KeysForFunc, DiMR.getRegion()->lkey,
                      Srv.clientId->qp);
 
+  Perf perf(opt.Measure);
+
   // WARM UP
   for (unsigned it = 0; it < NUM_WARMUP; ++it) {
     RecvKey.exec();
@@ -232,8 +234,6 @@ void srvLocalCompClient(const opts &opt) {
     SendDi.exec();
     std::cout << "Warm up " << it << "\n";
   }
-
-  Perf perf(opt.Measure);
 
   // REAL BENCHMARK
   for (unsigned it = 0; it < NUM_REP; ++it) {
