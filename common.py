@@ -2,8 +2,8 @@ import subprocess
 import re
 import math
 
-NUM_REPETITION = 1
 ENTRIES = [4, 16, 64, 256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216, 67108864]
+#ENTRIES = [4, 16]
 
 def exe(cmdline):
   print "executing: " + cmdline
@@ -44,9 +44,7 @@ def extract_nums(buf, label):
 
   return res
 
-def print_stats(needed_keys, measure, out):
-  print "num needed keys={0}".format(needed_keys)
-
+def print_stats(measure, out):
   if measure == "time":
     times = extract_nums(out, "time")
     average = avg(times)
