@@ -113,8 +113,17 @@ void clientServerSends(const opts &opt) {
   PostWrRecv RecvDo((uint64_t) Do, sizeof(uint32_t) * opt.OutputEntries, DoMR.getRegion()->lkey,
                     Client.clientId->qp);
 
+  Perf perf(opt.Measure);
+
+  for (unsigned it = 0; it < NUM_WARMUP; ++it) {
+    SendKey.exec();
+    RecvDo.exec();
+    Client.WaitForCompletion(2);
+    std::cout << "Warm up " << it << "\n";
+  }
+
   for (unsigned it = 0; it < NUM_REP; ++it) {
-    auto t0 = timer_start();
+    perf.start();
     *Key = it;
     SendKey.exec();
 
@@ -123,7 +132,7 @@ void clientServerSends(const opts &opt) {
     // We can simply wait for the 2 events
     Client.WaitForCompletion(2);
 
-    timer_end(t0);
+    perf.stop();
     std::cout << "Do[" << opt.OutputEntries - 1 << "]=" << Do[opt.OutputEntries - 1] << "\n";
   }
 

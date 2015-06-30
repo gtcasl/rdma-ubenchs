@@ -102,8 +102,10 @@ void srvSend(const opts &opt) {
   PostWrSend SendDo((uint64_t) Do, sizeof(uint32_t) * opt.OutputEntries, DoMR.getRegion()->lkey,
                      Srv.clientId->qp);
 
-  for (unsigned it = 0; it < NUM_REP; ++it) {
-    auto t0 = timer_start();
+  Perf perf(opt.Measure);
+
+  // WARM UP
+  for (unsigned it = 0; it < NUM_WARMUP; ++it) {
     RecvKey.exec();
 
     // The first time we are here, we have to establish the connection.
@@ -118,6 +120,17 @@ void srvSend(const opts &opt) {
       Srv.WaitForCompletion(2);
     }
 
+    expensiveFunc();
+    SendDo.exec();
+    std::cout << "Warm up " << it << "\n";
+  }
+
+  for (unsigned it = 0; it < NUM_REP; ++it) {
+    perf.start();
+    RecvKey.exec();
+
+    Srv.WaitForCompletion(2);
+
     // key can be used from this point forward safely
 
     // assume the function needs a subset A of a large set B to exec. if we were to
@@ -127,7 +140,7 @@ void srvSend(const opts &opt) {
     Do[opt.OutputEntries - 1] = it * 100;
     SendDo.exec();
 
-    timer_end(t0);
+    perf.stop();
     std::cout << "key=" << *Key << "\n";
   }
 
