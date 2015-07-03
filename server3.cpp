@@ -297,16 +297,24 @@ void srvClientReads(const opts &opt) {
 
   SendSI.post(Srv.clientId->qp);
   Srv.HandleConnectionEstablished();
+  Di[opt.KeysForFunc - 1] = 0;
   Srv.WaitForCompletion(1);
 
+  Perf perf(opt.Measure);
+
+  for (unsigned it = 0; it < NUM_WARMUP; ++it) {
+    check_z(ibv_post_recv(Srv.clientId->qp, &ZeroRecv, NULL));
+    Srv.WaitForCompletion(1);
+  }
+
   for (unsigned it = 0; it < NUM_REP; ++it) {
-    auto t0 = timer_start();
+    perf.start();
     Di[opt.KeysForFunc - 1] = it * 100;
 
     check_z(ibv_post_recv(Srv.clientId->qp, &ZeroRecv, NULL));
     Srv.WaitForCompletion(1);
 
-    timer_end(t0);
+    perf.stop();
   }
 
   delete[] Di;

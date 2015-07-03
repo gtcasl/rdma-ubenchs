@@ -29,11 +29,18 @@ def server_writes(option, opt, value, parser):
   sys.exit(0)
 
 def client_computes(option, opt, value, parser):
-  # needed keys don't alter the result of the benchmark because we don't
-  # have to send those to the client. only the output keys have an impact
-  # on the benchmark
   for needed_keys in ENTRIES:
     cmd = "taskset -c 11 ./server3 -n {0} -o 1024 -m {1}".format(
+                                            needed_keys, value)
+    out = exe(cmd)
+    print "num needed keys = {0}".format(needed_keys)
+    print_stats(value, out)
+
+  sys.exit(0)
+
+def client_reads(option, opt, value, parser):
+  for needed_keys in ENTRIES:
+    cmd = "taskset -c 11 ./server3 -r -n {0} -o 1024 -m {1}".format(
                                             needed_keys, value)
     out = exe(cmd)
     print "num needed keys = {0}".format(needed_keys)
@@ -48,6 +55,8 @@ def main():
   parser.add_option('--server-writes', action='callback', callback=server_writes,
                     dest='measure', type='str')
   parser.add_option('--client-computes', action='callback', callback=client_computes,
+                    dest='measure', type='str')
+  parser.add_option('--client-reads', action='callback', callback=client_reads,
                     dest='measure', type='str')
 
   (options, args) = parser.parse_args()

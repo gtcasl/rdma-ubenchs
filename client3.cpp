@@ -291,6 +291,15 @@ void clientReads(const opts &opt) {
 
   Perf perf(opt.Measure);
 
+  for (unsigned it = 0; it < NUM_WARMUP; ++it) {
+    ReadWR.post(Client.clientId->qp);
+    Client.WaitForCompletion(1);
+    ZeroWR.post(Client.clientId->qp);
+
+    Client.WaitForCompletion(1);
+    expensiveFunc();
+  }
+
   for (unsigned it = 0; it < NUM_REP; ++it) {
     perf.start();
 
