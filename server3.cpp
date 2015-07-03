@@ -173,16 +173,32 @@ void srvWrite(const opts &opt) {
 
   RecvSI RecvSI(Srv.protDomain);
   RecvSI.post(Srv.clientId->qp);
+  Srv.WaitForCompletion(1);
+  WriteWR.setRdma(RecvSI.Info->Addr, RecvSI.Info->RemoteKey);
 
-  for (unsigned it = 0; it < NUM_REP; ++it) {
-    auto t0 = timer_start();
+  Perf perf(opt.Measure);
+
+  for (unsigned it = 0; it < NUM_WARMUP; ++it) {
     RecvKey.exec();
 
     // The first time we are here, we have to establish the connection.
-    if (it == 0)
+    if (it == 0) {
       Srv.HandleConnectionEstablished();
+      Srv.WaitForCompletion(1);
+    } else {
+      Srv.WaitForCompletion(3);
+    }
 
-    Srv.WaitForCompletion(2);
+    expensiveFunc();
+    WriteWR.post(Srv.clientId->qp);
+    ZeroWR.post(Srv.clientId->qp);
+  }
+
+  for (unsigned it = 0; it < NUM_REP; ++it) {
+    perf.start();
+    RecvKey.exec();
+
+    Srv.WaitForCompletion(3);
 
     // key can be used from this point forward safely
 
@@ -192,18 +208,15 @@ void srvWrite(const opts &opt) {
 
     Do[opt.OutputEntries - 1] = it * 100;
 
-    // only need to set the RecvSI info the first time
-    if (it == 0)
-      WriteWR.setRdma(RecvSI.Info->Addr, RecvSI.Info->RemoteKey);
 
     WriteWR.post(Srv.clientId->qp);
     ZeroWR.post(Srv.clientId->qp);
 
-    timer_end(t0);
+    perf.stop();
     std::cout << "key=" << *Key << "\n";
   }
 
-  Srv.WaitForCompletion(1);
+  Srv.WaitForCompletion(2);
 
   delete Key;
   delete[] Do;

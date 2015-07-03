@@ -166,8 +166,17 @@ void clientServerWrites(const opts &opt) {
   ibv_recv_wr ZeroRecv = {};
   Client.WaitForCompletion(1);
 
+  Perf perf(opt.Measure);
+
+  for (unsigned it = 0; it < NUM_WARMUP; ++it) {
+    SendKey.exec();
+    check_z(ibv_post_recv(Client.clientId->qp, &ZeroRecv, NULL));
+
+    Client.WaitForCompletion(2);
+  }
+
   for (unsigned it = 0; it < NUM_REP; ++it) {
-    auto t0 = timer_start();
+    perf.start();
     *Key = it;
 
     SendKey.exec();
@@ -176,8 +185,13 @@ void clientServerWrites(const opts &opt) {
     // We can simply wait for the 2 events
     Client.WaitForCompletion(2);
 
-    timer_end(t0);
+    perf.stop();
     std::cout << "Do[" << opt.OutputEntries - 1 << "]=" << Do[opt.OutputEntries - 1] << "\n";
+
+    if (Do[opt.OutputEntries - 1] != it * 100) {
+      std::cout << "it=" << it << "Do=" << Do[opt.OutputEntries - 1] << "\n";
+      check(false, "data mismatch");
+    }
   }
 
   delete[] Do;

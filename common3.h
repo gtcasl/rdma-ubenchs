@@ -217,10 +217,12 @@ class SendWR {
 
 public:
   ibv_send_wr WR;
+  ibv_send_wr *BadWR;
 
   SendWR(Sge &SGE)
     : SGE(SGE) {
     WR = {};
+    BadWR = NULL;
     WR.sg_list = &(SGE.sge);
     WR.num_sge = 1;
     WR.send_flags = IBV_SEND_SIGNALED;
@@ -230,6 +232,7 @@ public:
   // zero byte
   SendWR() {
     WR = {};
+    BadWR = NULL;
     WR.sg_list = NULL;
     WR.num_sge = 0;
     WR.send_flags = IBV_SEND_SIGNALED;
@@ -251,8 +254,16 @@ public:
     WR.imm_data = htonl(0x1234);
   }
 
+  // TODO: this implementation should replace all other calls of
+  // ibv_post_send()
   void post(ibv_qp *QP) {
-    check_z(ibv_post_send(QP, &WR, NULL));
+    int ret = ibv_post_send(QP, &WR, &BadWR);
+
+    if (ret != 0) {
+      std::stringstream sstm;
+      sstm << "errno: " << strerror(ret);
+      check(false, sstm.str());
+    }
   }
 };
 
