@@ -23,7 +23,7 @@ typedef std::chrono::high_resolution_clock Time;
 typedef std::chrono::microseconds microsec;
 typedef std::chrono::duration<float> dsec;
 
-const unsigned NUM_REP = 1000;
+const unsigned NUM_REP = 3000;
 const unsigned NUM_WARMUP = 5;
 
 struct TestData {
@@ -126,8 +126,8 @@ public:
     qpAttr = {};
     qpAttr.cap.max_send_wr = 32;
     qpAttr.cap.max_recv_wr = 32;
-    qpAttr.cap.max_send_sge = 3;
-    qpAttr.cap.max_recv_sge = 3;
+    qpAttr.cap.max_send_sge = 1;
+    qpAttr.cap.max_recv_sge = 1;
     qpAttr.cap.max_inline_data = 64;
     qpAttr.qp_type = IBV_QPT_RC;
   }
@@ -252,6 +252,14 @@ public:
 
   void setImm() {
     WR.imm_data = htonl(0x1234);
+  }
+
+  void setUnsignaled() {
+    WR.send_flags = 0;
+  }
+
+  void setSignaled() {
+    WR.send_flags = IBV_SEND_SIGNALED;
   }
 
   // TODO: this implementation should replace all other calls of

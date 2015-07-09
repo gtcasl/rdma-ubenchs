@@ -230,7 +230,7 @@ void clientLocalCompClient(const opts &opt) {
     SendKey.exec();
     RecvDi.exec();
     Client.WaitForCompletion(2);
-    expensiveFunc();
+    ///expensiveFunc();
     std::cout << "Warm up " << it << "\n";
   }
 
@@ -243,7 +243,7 @@ void clientLocalCompClient(const opts &opt) {
     RecvDi.exec();
 
     Client.WaitForCompletion(2);
-    expensiveFunc();
+    ///expensiveFunc();
     perf.stop();
 
     if (Di[opt.KeysForFunc - 1] != it * 100) {
@@ -273,6 +273,12 @@ void clientReads(const opts &opt) {
 
   RecvSI RecvSI(Client.protDomain);
 
+  uint32_t *Key = new uint32_t();
+  *Key = 15;
+  MemRegion KeyMR(Key, sizeof(uint32_t), Client.protDomain);
+  PostWrSend SendKey((uint64_t) Key, sizeof(uint32_t), KeyMR.getRegion()->lkey,
+                     Client.clientId->qp);
+
   uint32_t *Di = new uint32_t[opt.KeysForFunc]();
   size_t ReadSize = opt.KeysForFunc * sizeof(uint32_t);
   MemRegion DiMR(Di, ReadSize, Client.protDomain);
@@ -292,26 +298,31 @@ void clientReads(const opts &opt) {
   Perf perf(opt.Measure);
 
   for (unsigned it = 0; it < NUM_WARMUP; ++it) {
+    SendKey.exec();
     ReadWR.post(Client.clientId->qp);
-    Client.WaitForCompletion(1);
     ZeroWR.post(Client.clientId->qp);
-
-    Client.WaitForCompletion(1);
-    expensiveFunc();
+    Client.WaitForCompletion(3);
+    ///expensiveFunc();
   }
+
+  ReadWR.setSignaled();
 
   for (unsigned it = 0; it < NUM_REP; ++it) {
     perf.start();
 
-    ReadWR.post(Client.clientId->qp);
-
+    *Key = it;
+    SendKey.exec();
     Client.WaitForCompletion(1);
+
+    ReadWR.post(Client.clientId->qp);
     ZeroWR.post(Client.clientId->qp);
 
-    Client.WaitForCompletion(1);
-    expensiveFunc();
+    Client.WaitForCompletion(2);
+    ///expensiveFunc();
 
     perf.stop();
+
+    std::cout << "Di[" << opt.KeysForFunc - 1 << "]=" << Di[opt.KeysForFunc - 1] << "\n";
 
     if (Di[opt.KeysForFunc - 1] != it * 100) {
       std::cout << "it=" << it << "Di=" << Di[opt.KeysForFunc - 1] << "\n";
@@ -319,6 +330,7 @@ void clientReads(const opts &opt) {
     }
   }
 
+  delete[] Key;
   delete[] Di;
   rdma_disconnect(Client.clientId);
 }

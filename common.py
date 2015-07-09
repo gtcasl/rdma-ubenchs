@@ -9,6 +9,9 @@ def exe(cmdline):
   print "executing: " + cmdline
   p = subprocess.Popen(cmdline.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
   out, err = p.communicate()
+  if p.returncode != 0:
+    print out, err
+    raise RuntimeError("return code not 0")
   return out + err
 
 def is_int(str):
@@ -30,7 +33,7 @@ def std_dev(nums, avg):
   for n in nums:
     sum = sum + math.pow(n - avg, 2)
 
-  sample_var = sum / float((len(nums) - 1))
+  sample_var = sum / float((len(nums)))
   return math.sqrt(sample_var)
 
 def extract_nums(buf, label):

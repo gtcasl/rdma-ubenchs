@@ -107,11 +107,6 @@ void srvSend(const opts &opt) {
   // WARM UP
   for (unsigned it = 0; it < NUM_WARMUP; ++it) {
     RecvKey.exec();
-
-    // The first time we are here, we have to establish the connection.
-    // Also, we wait for the key to be received (we need it down below).
-    // In all the other cases, we wait for 2 wr. That is, the Send request from
-    // down below and the Recv req from the beginning of the loop (for the key).
     // This way we save ourselves from waiting for Do to be sent.
     if (it == 0) {
       Srv.HandleConnectionEstablished();
@@ -120,7 +115,7 @@ void srvSend(const opts &opt) {
       Srv.WaitForCompletion(2);
     }
 
-    expensiveFunc();
+    ///expensiveFunc();
     SendDo.exec();
     std::cout << "Warm up " << it << "\n";
   }
@@ -135,7 +130,7 @@ void srvSend(const opts &opt) {
 
     // assume the function needs a subset A of a large set B to exec. if we were to
     // run the func locally on the client, we would need to transfer A first.
-    expensiveFunc();
+    ///expensiveFunc();
 
     Do[opt.OutputEntries - 1] = it * 100;
     SendDo.exec();
@@ -189,7 +184,7 @@ void srvWrite(const opts &opt) {
       Srv.WaitForCompletion(3);
     }
 
-    expensiveFunc();
+    ///expensiveFunc();
     WriteWR.post(Srv.clientId->qp);
     ZeroWR.post(Srv.clientId->qp);
   }
@@ -204,7 +199,7 @@ void srvWrite(const opts &opt) {
 
     // assume the function needs a subset A of a large set B to exec. if we were to
     // run the func locally on the client, we would need to transfer A first.
-    expensiveFunc();
+    ///expensiveFunc();
 
     Do[opt.OutputEntries - 1] = it * 100;
 
@@ -287,6 +282,11 @@ void srvClientReads(const opts &opt) {
   Server Srv;
   Srv.HandleConnectRequest();
 
+  uint32_t *Key = new uint32_t();
+  MemRegion KeyMR(Key, sizeof(uint32_t), Srv.protDomain);
+  PostWrRecv RecvKey((uint64_t) Key, sizeof(uint32_t), KeyMR.getRegion()->lkey,
+                     Srv.clientId->qp);
+
   // setup Di buffer, send SI of it
   uint32_t *Di = new uint32_t[opt.KeysForFunc]();
   Di[opt.KeysForFunc - 1] = 0x1234;
@@ -303,20 +303,25 @@ void srvClientReads(const opts &opt) {
   Perf perf(opt.Measure);
 
   for (unsigned it = 0; it < NUM_WARMUP; ++it) {
+    RecvKey.exec();
     check_z(ibv_post_recv(Srv.clientId->qp, &ZeroRecv, NULL));
-    Srv.WaitForCompletion(1);
+    Srv.WaitForCompletion(2);
   }
 
   for (unsigned it = 0; it < NUM_REP; ++it) {
     perf.start();
-    Di[opt.KeysForFunc - 1] = it * 100;
+    RecvKey.exec();
 
+    Srv.WaitForCompletion(1);
+
+    Di[opt.KeysForFunc - 1] = it * 100;
     check_z(ibv_post_recv(Srv.clientId->qp, &ZeroRecv, NULL));
     Srv.WaitForCompletion(1);
 
     perf.stop();
   }
 
+  delete[] Key;
   delete[] Di;
   Srv.HandleDisconnect();
 }

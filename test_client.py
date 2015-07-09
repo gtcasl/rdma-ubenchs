@@ -44,7 +44,7 @@ def client_computes(option, opt, value, parser):
 
 def client_reads(option, opt, value, parser):
   for needed_keys in ENTRIES:
-    time.sleep(10)
+    time.sleep(1)
     cmd = "taskset -c 11 ./client3 -r -n {0} -o 1024 -m {1}".format(
                                       needed_keys, value)
     out = exe(cmd)
