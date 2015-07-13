@@ -286,8 +286,7 @@ void clientReads(const opts &opt) {
   SendWR ReadWR(ReadSGE);
   ReadWR.setOpcode(IBV_WR_RDMA_READ);
 
-  SendWR ZeroWR;
-  ZeroWR.setOpcode(IBV_WR_SEND);
+  ibv_recv_wr ZeroRecv = {};
 
   RecvSI.post(Client.clientId->qp);
   Client.WaitForCompletion(1);
@@ -296,28 +295,32 @@ void clientReads(const opts &opt) {
   ReadWR.setRdma(RecvSI.Info->Addr, RecvSI.Info->RemoteKey);
 
   Perf perf(opt.Measure);
+  ReadWR.setSignaled();
 
   for (unsigned it = 0; it < NUM_WARMUP; ++it) {
     SendKey.exec();
+    Client.WaitForCompletion(1);
+    check_z(ibv_post_recv(Client.clientId->qp, &ZeroRecv, NULL)); // wait for signal to read mem
+    Client.WaitForCompletion(1);
     ReadWR.post(Client.clientId->qp);
-    ZeroWR.post(Client.clientId->qp);
-    Client.WaitForCompletion(3);
-    ///expensiveFunc();
+    Client.WaitForCompletion(1);
+    expensiveFunc();
   }
 
-  ReadWR.setSignaled();
 
   for (unsigned it = 0; it < NUM_REP; ++it) {
     perf.start();
 
     *Key = it;
     SendKey.exec();
+    Client.WaitForCompletion(1); // wait for key to be sent
+
+    check_z(ibv_post_recv(Client.clientId->qp, &ZeroRecv, NULL)); // wait for signal to read mem
     Client.WaitForCompletion(1);
 
     ReadWR.post(Client.clientId->qp);
-    ZeroWR.post(Client.clientId->qp);
+    Client.WaitForCompletion(1);
 
-    Client.WaitForCompletion(2);
     ///expensiveFunc();
 
     perf.stop();

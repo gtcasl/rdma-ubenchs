@@ -293,7 +293,8 @@ void srvClientReads(const opts &opt) {
   MemRegion DiMR(Di, sizeof(uint32_t) * opt.KeysForFunc, Srv.protDomain);
   SendSI SendSI(Di, DiMR.getRegion(), Srv.protDomain);
 
-  ibv_recv_wr ZeroRecv = {};
+  SendWR ZeroWR;
+  ZeroWR.setOpcode(IBV_WR_SEND);
 
   SendSI.post(Srv.clientId->qp);
   Srv.HandleConnectionEstablished();
@@ -304,18 +305,19 @@ void srvClientReads(const opts &opt) {
 
   for (unsigned it = 0; it < NUM_WARMUP; ++it) {
     RecvKey.exec();
-    check_z(ibv_post_recv(Srv.clientId->qp, &ZeroRecv, NULL));
-    Srv.WaitForCompletion(2);
+    Srv.WaitForCompletion(1);
+    ZeroWR.post(Srv.clientId->qp);
+    Srv.WaitForCompletion(1);
   }
 
   for (unsigned it = 0; it < NUM_REP; ++it) {
     perf.start();
-    RecvKey.exec();
-
+    RecvKey.exec(); // wait for the key to write our mem
     Srv.WaitForCompletion(1);
 
     Di[opt.KeysForFunc - 1] = it * 100;
-    check_z(ibv_post_recv(Srv.clientId->qp, &ZeroRecv, NULL));
+
+    ZeroWR.post(Srv.clientId->qp); // notify the client to read the mem
     Srv.WaitForCompletion(1);
 
     perf.stop();

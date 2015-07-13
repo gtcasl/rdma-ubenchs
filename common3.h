@@ -23,7 +23,7 @@ typedef std::chrono::high_resolution_clock Time;
 typedef std::chrono::microseconds microsec;
 typedef std::chrono::duration<float> dsec;
 
-const unsigned NUM_REP = 3000;
+const unsigned NUM_REP = 1000;
 const unsigned NUM_WARMUP = 5;
 
 struct TestData {

@@ -33,7 +33,7 @@ def std_dev(nums, avg):
   for n in nums:
     sum = sum + math.pow(n - avg, 2)
 
-  sample_var = sum / float((len(nums)))
+  sample_var = sum / float((len(nums) - 1))
   return math.sqrt(sample_var)
 
 def extract_nums(buf, label):
