@@ -1,0 +1,65 @@
+executing: taskset -c 11 ./client3 -r -n 4 -o 1024 -m time
+num needed keys = 4
+avg time=109.242, sample std dev=1190.01697881
+
+
+executing: taskset -c 11 ./client3 -r -n 16 -o 1024 -m time
+num needed keys = 16
+avg time=22.832, sample std dev=67.531164911
+
+
+executing: taskset -c 11 ./client3 -r -n 64 -o 1024 -m time
+num needed keys = 64
+avg time=184.444, sample std dev=3034.49462819
+
+
+executing: taskset -c 11 ./client3 -r -n 256 -o 1024 -m time
+num needed keys = 256
+avg time=780.043, sample std dev=13876.7048215
+
+
+executing: taskset -c 11 ./client3 -r -n 1024 -o 1024 -m time
+num needed keys = 1024
+avg time=184.583, sample std dev=2151.06090758
+
+
+executing: taskset -c 11 ./client3 -r -n 4096 -o 1024 -m time
+num needed keys = 4096
+avg time=49.037, sample std dev=344.615242403
+
+
+executing: taskset -c 11 ./client3 -r -n 16384 -o 1024 -m time
+num needed keys = 16384
+avg time=254.853, sample std dev=4239.38312525
+
+
+executing: taskset -c 11 ./client3 -r -n 65536 -o 1024 -m time
+num needed keys = 65536
+avg time=208.615, sample std dev=2.88254819285
+
+
+executing: taskset -c 11 ./client3 -r -n 262144 -o 1024 -m time
+num needed keys = 262144
+avg time=777.975, sample std dev=9.23567391546
+
+
+executing: taskset -c 11 ./client3 -r -n 1048576 -o 1024 -m time
+num needed keys = 1048576
+avg time=3052.673, sample std dev=31.4578713309
+
+
+executing: taskset -c 11 ./client3 -r -n 4194304 -o 1024 -m time
+num needed keys = 4194304
+avg time=12293.008, sample std dev=456.18495443
+
+
+executing: taskset -c 11 ./client3 -r -n 16777216 -o 1024 -m time
+num needed keys = 16777216
+avg time=48990.656, sample std dev=231.713670052
+
+
+executing: taskset -c 11 ./client3 -r -n 67108864 -o 1024 -m time
+num needed keys = 67108864
+avg time=195837.89, sample std dev=566.413356119
+
+
