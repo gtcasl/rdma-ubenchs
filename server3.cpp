@@ -115,7 +115,7 @@ void srvSend(const opts &opt) {
       Srv.WaitForCompletion(2);
     }
 
-    ///expensiveFunc();
+    expensiveFunc();
     SendDo.exec();
     std::cout << "Warm up " << it << "\n";
   }
@@ -130,7 +130,7 @@ void srvSend(const opts &opt) {
 
     // assume the function needs a subset A of a large set B to exec. if we were to
     // run the func locally on the client, we would need to transfer A first.
-    ///expensiveFunc();
+    expensiveFunc();
 
     Do[opt.OutputEntries - 1] = it * 100;
     SendDo.exec();
@@ -184,7 +184,7 @@ void srvWrite(const opts &opt) {
       Srv.WaitForCompletion(3);
     }
 
-    ///expensiveFunc();
+    expensiveFunc();
     WriteWR.post(Srv.clientId->qp);
     ZeroWR.post(Srv.clientId->qp);
   }
@@ -199,7 +199,7 @@ void srvWrite(const opts &opt) {
 
     // assume the function needs a subset A of a large set B to exec. if we were to
     // run the func locally on the client, we would need to transfer A first.
-    ///expensiveFunc();
+    expensiveFunc();
 
     Do[opt.OutputEntries - 1] = it * 100;
 

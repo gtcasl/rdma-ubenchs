@@ -230,7 +230,7 @@ void clientLocalCompClient(const opts &opt) {
     SendKey.exec();
     RecvDi.exec();
     Client.WaitForCompletion(2);
-    ///expensiveFunc();
+    expensiveFunc();
     std::cout << "Warm up " << it << "\n";
   }
 
@@ -243,7 +243,7 @@ void clientLocalCompClient(const opts &opt) {
     RecvDi.exec();
 
     Client.WaitForCompletion(2);
-    ///expensiveFunc();
+    expensiveFunc();
     perf.stop();
 
     if (Di[opt.KeysForFunc - 1] != it * 100) {
@@ -321,7 +321,7 @@ void clientReads(const opts &opt) {
     ReadWR.post(Client.clientId->qp);
     Client.WaitForCompletion(1);
 
-    ///expensiveFunc();
+    expensiveFunc();
 
     perf.stop();
 
