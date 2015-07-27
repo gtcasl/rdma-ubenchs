@@ -1,0 +1,20 @@
+executing: taskset -c 11 ./client3 -r -n 1048576 -o 1024 -m time
+num needed keys = 1048576
+avg time=15789.965, sample std dev=8.91019484583
+
+
+executing: taskset -c 11 ./client3 -r -n 4194304 -o 1024 -m time
+num needed keys = 4194304
+avg time=24849.6533333, sample std dev=27.2426481125
+
+
+executing: taskset -c 11 ./client3 -r -n 16777216 -o 1024 -m time
+num needed keys = 16777216
+avg time=60953.432, sample std dev=142.260085829
+
+
+executing: taskset -c 11 ./client3 -r -n 67108864 -o 1024 -m time
+num needed keys = 67108864
+avg time=205364.997, sample std dev=594.663002902
+
+
