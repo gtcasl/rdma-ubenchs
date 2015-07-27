@@ -9,7 +9,7 @@ def server_sends(option, opt, value, parser):
   # have to send those to the client. only the output keys have an impact
   # on the benchmark
   for output_keys in ENTRIES:
-    time.sleep(1)
+    time.sleep(5)
     out = exe("taskset -c 11 ./client3 -s -n 1024 -o {0} -m {1}".format(output_keys, value))
     print "num output keys = {0}".format(output_keys)
     print_stats(value, out)
@@ -21,7 +21,7 @@ def server_writes(option, opt, value, parser):
   # have to send those to the client. only the output keys have an impact
   # on the benchmark
   for output_keys in ENTRIES:
-    time.sleep(1)
+    time.sleep(5)
     out = exe("taskset -c 11 ./client3 -w -n 1024 -o {0} -m {1}".format(output_keys, value))
     print "num output keys = {0}".format(output_keys)
     print_stats(value, out)
@@ -33,7 +33,7 @@ def client_computes(option, opt, value, parser):
   # have to send those to the client. only the needed keys have an impact
   # on the benchmark
   for needed_keys in ENTRIES:
-    time.sleep(1)
+    time.sleep(5)
     cmd = "taskset -c 11 ./client3 -n {0} -o 1024 -m {1}".format(
                                       needed_keys, value)
     out = exe(cmd)
@@ -44,7 +44,7 @@ def client_computes(option, opt, value, parser):
 
 def client_reads(option, opt, value, parser):
   for needed_keys in ENTRIES:
-    time.sleep(1)
+    time.sleep(5)
     cmd = "taskset -c 11 ./client3 -r -n {0} -o 1024 -m {1}".format(
                                       needed_keys, value)
     out = exe(cmd)
