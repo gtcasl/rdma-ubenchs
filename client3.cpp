@@ -205,6 +205,9 @@ void srvServerWrites(const opts &opt) {
 }
 
 void clntServerSends(const opts &opt) {
+  std::cout << "Client - server sends\n";
+  std::cout << "Computation cost of " << opt.CompCost << "\n";
+
   Client Client;
   Client.HandleAddrResolved();
   Client.HandleRouteResolved();
@@ -265,6 +268,9 @@ void clntServerSends(const opts &opt) {
 }
 
 void clntClientReads(const opts &opt) {
+  std::cout << "Client - client reads\n";
+  std::cout << "Computation cost of " << opt.CompCost << "\n";
+
   Client Client;
   Client.HandleAddrResolved();
   Client.HandleRouteResolved();
@@ -348,12 +354,14 @@ int main(int argc, char *argv[]) {
 
   if (opt.send && opt.ExecServer) {
     srvServerSends(opt);
-  } else if (opt.write) {
+  } else if (opt.write && opt.ExecServer) {
     srvServerWrites(opt);
-  } else if (opt.Read) {
+  } else if (opt.Read && opt.ExecClient) {
     clntClientReads(opt);
-  } else {
+  } else if (opt.send && opt.ExecClient) {
     clntServerSends(opt);
+  } else {
+    check(false, "Invalid combination of options");
   }
 
   return 0;

@@ -88,7 +88,6 @@ public:
 };
 
 void srvServerSends(const opts &opt) {
-  std::cout << "Server - server sends\n";
   Server Srv;
   Srv.HandleConnectRequest();
 
@@ -98,6 +97,9 @@ void srvServerSends(const opts &opt) {
                      Srv.clientId->qp);
 
   unsigned int outputSize = getOutputSize(opt);
+  std::cout << "Server - server sends\n";
+  std::cout << "Will send Do buffer of size " << outputSize << "\n";
+  std::cout << "The cost of comp will be " << opt.CompCost << "\n";
 
   uint32_t *Do = new uint32_t[outputSize]();
   Do[outputSize - 1] = 0x1234;
@@ -150,10 +152,14 @@ void srvServerSends(const opts &opt) {
 }
 
 void srvServerWrites(const opts &opt) {
+  unsigned int outputSize = getOutputSize(opt);
+
+  std::cout << "Server - server writes\n";
+  std::cout << "Will write Do buffer of size " << outputSize << "\n";
+  std::cout << "The cost of comp will be " << opt.CompCost << "\n";
+
   Server Srv;
   Srv.HandleConnectRequest();
-
-  unsigned int outputSize = getOutputSize(opt);
 
   uint32_t *Key = new uint32_t();
   MemRegion KeyMR(Key, sizeof(uint32_t), Srv.protDomain);
@@ -224,7 +230,9 @@ void srvServerWrites(const opts &opt) {
 }
 
 void clntServerSends(const opts &opt) {
-  // local computation on client: receive key and Send Di
+  std::cout << "Client - server sends\n";
+  std::cout << "Will send Di buffer of size " << opt.DiSize << "\n";
+
   Server Srv;
   Srv.HandleConnectRequest();
 
@@ -284,6 +292,9 @@ void clntServerSends(const opts &opt) {
 }
 
 void clntClientReads(const opts &opt) {
+  std::cout << "Client - client reads\n";
+  std::cout << "Will setup Di buffer of size " << opt.DiSize << "\n";
+
   Server Srv;
   Srv.HandleConnectRequest();
 
@@ -338,12 +349,14 @@ int main(int argc, char *  argv[]) {
 
   if (opt.send && opt.ExecServer) {
     srvServerSends(opt);
-  } else if (opt.write) {
+  } else if (opt.write && opt.ExecServer) {
     srvServerWrites(opt);
-  } else if (opt.Read) {
+  } else if (opt.Read && opt.ExecClient) {
     clntClientReads(opt);
-  } else {
+  } else if (opt.send && opt.ExecClient) {
     clntServerSends(opt);
+  } else {
+    check(false, "Invalid combination of options");
   }
 
   return 0;
