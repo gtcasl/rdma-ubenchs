@@ -32,23 +32,23 @@ def client_computes(option, opt, value, parser):
   # output keys don't alter the result of the benchmark because we don't
   # have to send those to the client. only the needed keys have an impact
   # on the benchmark
-  for needed_keys in ENTRIES:
+  for idx, val in enumerate(ENTRIES):
     time.sleep(5)
-    cmd = "taskset -c 11 ./client3 -n {0} -o 1024 -m {1}".format(
-                                      needed_keys, value)
+    cmd = "taskset -c 11 ./client3 -n {0} -o 1024 -m {1} -c {2}".format(
+                                      val, value, COST[idx])
     out = exe(cmd)
-    print "num needed keys = {0}".format(needed_keys)
+    print "num needed keys = {0}, cost = {1}".format(val, COST[idx])
     print_stats(value, out)
 
   sys.exit(0)
 
 def client_reads(option, opt, value, parser):
-  for needed_keys in ENTRIES:
+  for idx, val in enumerate(ENTRIES):
     time.sleep(5)
-    cmd = "taskset -c 11 ./client3 -r -n {0} -o 1024 -m {1}".format(
-                                      needed_keys, value)
+    cmd = "taskset -c 11 ./client3 -r -n {0} -o 1024 -m {1} -c {2}".format(
+                                      val, value, COST[idx])
     out = exe(cmd)
-    print "num needed keys = {0}".format(needed_keys)
+    print "num needed keys = {0}, cost = {1}".format(val, COST[idx])
     print_stats(value, out)
 
   sys.exit(0)

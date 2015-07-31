@@ -87,7 +87,8 @@ public:
   }
 };
 
-void srvSend(const opts &opt) {
+void srvServerSends(const opts &opt) {
+  std::cout << "Server - server sends\n";
   Server Srv;
   Srv.HandleConnectRequest();
 
@@ -96,10 +97,12 @@ void srvSend(const opts &opt) {
   PostWrRecv RecvKey((uint64_t) Key, sizeof(uint32_t), KeyMR.getRegion()->lkey,
                      Srv.clientId->qp);
 
-  uint32_t *Do = new uint32_t[opt.OutputEntries]();
-  Do[opt.OutputEntries - 1] = 0x1234;
-  MemRegion DoMR(Do, sizeof(uint32_t) * opt.OutputEntries, Srv.protDomain);
-  PostWrSend SendDo((uint64_t) Do, sizeof(uint32_t) * opt.OutputEntries, DoMR.getRegion()->lkey,
+  unsigned int outputSize = getOutputSize(opt);
+
+  uint32_t *Do = new uint32_t[outputSize]();
+  Do[outputSize - 1] = 0x1234;
+  MemRegion DoMR(Do, sizeof(uint32_t) * outputSize, Srv.protDomain);
+  PostWrSend SendDo((uint64_t) Do, sizeof(uint32_t) * outputSize, DoMR.getRegion()->lkey,
                      Srv.clientId->qp);
 
   Perf perf(opt.Measure);
@@ -115,7 +118,7 @@ void srvSend(const opts &opt) {
       Srv.WaitForCompletion(2);
     }
 
-    expensiveFunc();
+    expensiveFunc(opt.CompCost);
     SendDo.exec();
     std::cout << "Warm up " << it << "\n";
   }
@@ -130,9 +133,9 @@ void srvSend(const opts &opt) {
 
     // assume the function needs a subset A of a large set B to exec. if we were to
     // run the func locally on the client, we would need to transfer A first.
-    expensiveFunc();
+    expensiveFunc(opt.CompCost);
 
-    Do[opt.OutputEntries - 1] = it * 100;
+    Do[outputSize - 1] = it * 100;
     SendDo.exec();
 
     perf.stop();
@@ -146,18 +149,20 @@ void srvSend(const opts &opt) {
   Srv.HandleDisconnect();
 }
 
-void srvWrite(const opts &opt) {
+void srvServerWrites(const opts &opt) {
   Server Srv;
   Srv.HandleConnectRequest();
+
+  unsigned int outputSize = getOutputSize(opt);
 
   uint32_t *Key = new uint32_t();
   MemRegion KeyMR(Key, sizeof(uint32_t), Srv.protDomain);
   PostWrRecv RecvKey((uint64_t) Key, sizeof(uint32_t), KeyMR.getRegion()->lkey,
                      Srv.clientId->qp);
 
-  uint32_t *Do = new uint32_t[opt.OutputEntries]();
-  size_t WriteSize = opt.OutputEntries * sizeof(uint32_t);
-  Do[opt.OutputEntries - 1] = 0x1234;
+  uint32_t *Do = new uint32_t[outputSize]();
+  size_t WriteSize = outputSize * sizeof(uint32_t);
+  Do[outputSize - 1] = 0x1234;
   MemRegion DoMR(Do, WriteSize, Srv.protDomain);
   Sge WriteSGE((uint64_t) Do, WriteSize, DoMR.getRegion()->lkey);
   SendWR WriteWR(WriteSGE);
@@ -184,7 +189,7 @@ void srvWrite(const opts &opt) {
       Srv.WaitForCompletion(3);
     }
 
-    expensiveFunc();
+    expensiveFunc(opt.CompCost);
     WriteWR.post(Srv.clientId->qp);
     ZeroWR.post(Srv.clientId->qp);
   }
@@ -199,9 +204,9 @@ void srvWrite(const opts &opt) {
 
     // assume the function needs a subset A of a large set B to exec. if we were to
     // run the func locally on the client, we would need to transfer A first.
-    expensiveFunc();
+    expensiveFunc(opt.CompCost);
 
-    Do[opt.OutputEntries - 1] = it * 100;
+    Do[outputSize - 1] = it * 100;
 
 
     WriteWR.post(Srv.clientId->qp);
@@ -218,7 +223,7 @@ void srvWrite(const opts &opt) {
   Srv.HandleDisconnect();
 }
 
-void srvLocalCompClient(const opts &opt) {
+void clntServerSends(const opts &opt) {
   // local computation on client: receive key and Send Di
   Server Srv;
   Srv.HandleConnectRequest();
@@ -228,10 +233,10 @@ void srvLocalCompClient(const opts &opt) {
   PostWrRecv RecvKey((uint64_t) Key, sizeof(uint32_t), KeyMR.getRegion()->lkey,
                      Srv.clientId->qp);
 
-  uint32_t *Di = new uint32_t[opt.KeysForFunc]();
-  Di[opt.KeysForFunc - 1] = 0x1234;
-  MemRegion DiMR(Di, sizeof(uint32_t) * opt.KeysForFunc, Srv.protDomain);
-  PostWrSend SendDi((uint64_t) Di, sizeof(uint32_t) * opt.KeysForFunc, DiMR.getRegion()->lkey,
+  uint32_t *Di = new uint32_t[opt.DiSize]();
+  Di[opt.DiSize - 1] = 0x1234;
+  MemRegion DiMR(Di, sizeof(uint32_t) * opt.DiSize, Srv.protDomain);
+  PostWrSend SendDi((uint64_t) Di, sizeof(uint32_t) * opt.DiSize, DiMR.getRegion()->lkey,
                      Srv.clientId->qp);
 
   Perf perf(opt.Measure);
@@ -265,7 +270,7 @@ void srvLocalCompClient(const opts &opt) {
 
     // key can be used from this point forward safely
 
-    Di[opt.KeysForFunc - 1] = it * 100;
+    Di[opt.DiSize - 1] = it * 100;
     SendDi.exec();
     perf.stop();
     std::cout << "key=" << *Key << "\n";
@@ -278,7 +283,7 @@ void srvLocalCompClient(const opts &opt) {
   Srv.HandleDisconnect();
 }
 
-void srvClientReads(const opts &opt) {
+void clntClientReads(const opts &opt) {
   Server Srv;
   Srv.HandleConnectRequest();
 
@@ -288,9 +293,9 @@ void srvClientReads(const opts &opt) {
                      Srv.clientId->qp);
 
   // setup Di buffer, send SI of it
-  uint32_t *Di = new uint32_t[opt.KeysForFunc]();
-  Di[opt.KeysForFunc - 1] = 0x1234;
-  MemRegion DiMR(Di, sizeof(uint32_t) * opt.KeysForFunc, Srv.protDomain);
+  uint32_t *Di = new uint32_t[opt.DiSize]();
+  Di[opt.DiSize - 1] = 0x1234;
+  MemRegion DiMR(Di, sizeof(uint32_t) * opt.DiSize, Srv.protDomain);
   SendSI SendSI(Di, DiMR.getRegion(), Srv.protDomain);
 
   SendWR ZeroWR;
@@ -298,7 +303,7 @@ void srvClientReads(const opts &opt) {
 
   SendSI.post(Srv.clientId->qp);
   Srv.HandleConnectionEstablished();
-  Di[opt.KeysForFunc - 1] = 0;
+  Di[opt.DiSize - 1] = 0;
   Srv.WaitForCompletion(1);
 
   Perf perf(opt.Measure);
@@ -315,7 +320,7 @@ void srvClientReads(const opts &opt) {
     RecvKey.exec(); // wait for the key to write our mem
     Srv.WaitForCompletion(1);
 
-    Di[opt.KeysForFunc - 1] = it * 100;
+    Di[opt.DiSize - 1] = it * 100;
 
     ZeroWR.post(Srv.clientId->qp); // notify the client to read the mem
     Srv.WaitForCompletion(1);
@@ -331,16 +336,14 @@ void srvClientReads(const opts &opt) {
 int main(int argc, char *  argv[]) {
   opts opt = parse_cl(argc, argv);
 
-  if (opt.send) {
-    // receive key and then compute expensiveFunc. Send back Do.
-    srvSend(opt);
+  if (opt.send && opt.ExecServer) {
+    srvServerSends(opt);
   } else if (opt.write) {
-    srvWrite(opt);
+    srvServerWrites(opt);
   } else if (opt.Read) {
-    srvClientReads(opt);
+    clntClientReads(opt);
   } else {
-    // local computation on client: receive key and Send Di
-    srvLocalCompClient(opt);
+    clntServerSends(opt);
   }
 
   return 0;

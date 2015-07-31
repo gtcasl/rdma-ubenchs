@@ -8,10 +8,10 @@ def server_sends(option, opt, value, parser):
   # needed keys don't alter the result of the benchmark because we don't
   # have to send those to the client. only the output keys have an impact
   # on the benchmark
-  for output_keys in ENTRIES:
-    cmd = "taskset -c 11 ./server3 -s -n 1024 -o {0} -m {1}".format(output_keys, value)
+  for idx, val in enumerate(ENTRIES):
+    cmd = "taskset -c 11 ./server3 -s -n 1024 -o {0} -m {1} -c {2}".format(val, value, COST[idx])
     out = exe(cmd)
-    print "num output keys = {0}".format(output_keys)
+    print "num output keys = {0}, cost = {1}".format(val, COST[idx])
     print_stats(value, out)
 
   sys.exit(0)
@@ -20,30 +20,30 @@ def server_writes(option, opt, value, parser):
   # needed keys don't alter the result of the benchmark because we don't
   # have to send those to the client. only the output keys have an impact
   # on the benchmark
-  for output_keys in ENTRIES:
-    cmd = "taskset -c 11 ./server3 -w -n 1024 -o {0} -m {1}".format(output_keys, value)
+  for idx, val in enumerate(ENTRIES):
+    cmd = "taskset -c 11 ./server3 -w -n 1024 -o {0} -m {1} -c {2}".format(val, value, COST[idx])
     out = exe(cmd)
-    print "num output keys = {0}".format(output_keys)
+    print "num output keys = {0}, cost = {1}".format(val, COST[idx])
     print_stats(value, out)
 
   sys.exit(0)
 
 def client_computes(option, opt, value, parser):
-  for needed_keys in ENTRIES:
-    cmd = "taskset -c 11 ./server3 -n {0} -o 1024 -m {1}".format(
-                                            needed_keys, value)
+  for idx, val in enumerate(ENTRIES):
+    cmd = "taskset -c 11 ./server3 -n {0} -o 1024 -m {1} -c {2}".format(
+                                            val, value, COST[idx])
     out = exe(cmd)
-    print "num needed keys = {0}".format(needed_keys)
+    print "num needed keys = {0}, cost = {1}".format(val, COST[idx])
     print_stats(value, out)
 
   sys.exit(0)
 
 def client_reads(option, opt, value, parser):
-  for needed_keys in ENTRIES:
-    cmd = "taskset -c 11 ./server3 -r -n {0} -o 1024 -m {1}".format(
-                                            needed_keys, value)
+  for idx, val in enumerate(ENTRIES):
+    cmd = "taskset -c 11 ./server3 -r -n {0} -o 1024 -m {1} -c {2}".format(
+                                            val, value, COST[idx])
     out = exe(cmd)
-    print "num needed keys = {0}".format(needed_keys)
+    print "num needed keys = {0}, cost = {1}".format(val, COST[idx])
     print_stats(value, out)
 
   sys.exit(0)

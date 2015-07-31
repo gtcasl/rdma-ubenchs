@@ -1,0 +1,25 @@
+executing: taskset -c 11 ./server3 -n 4718592 -o 1024 -m time -c 1
+num needed keys = 4718592, cost = 1
+avg time=13553.863, sample std dev=1.67362840321
+
+
+executing: taskset -c 11 ./server3 -n 3538944 -o 1024 -m time -c 256
+num needed keys = 3538944, cost = 256
+avg time=10841.843, sample std dev=2.17418446275
+
+
+executing: taskset -c 11 ./server3 -n 2359296 -o 1024 -m time -c 512
+num needed keys = 2359296, cost = 512
+avg time=9787.241, sample std dev=2.55997509216
+
+
+executing: taskset -c 11 ./server3 -n 1179648 -o 1024 -m time -c 768
+num needed keys = 1179648, cost = 768
+avg time=10636.222, sample std dev=12.7999435372
+
+
+executing: taskset -c 11 ./server3 -n 2 -o 1024 -m time -c 1024
+num needed keys = 2, cost = 1024
+avg time=13484.806, sample std dev=23.8960956515
+
+

@@ -23,7 +23,7 @@ typedef std::chrono::high_resolution_clock Time;
 typedef std::chrono::microseconds microsec;
 typedef std::chrono::duration<float> dsec;
 
-const unsigned NUM_REP = 3000;
+const unsigned NUM_REP = 1000;
 const unsigned NUM_WARMUP = 5;
 
 struct TestData {
@@ -516,18 +516,29 @@ void computePrime(uint32_t NumPrime) {
   }
 }
 
-void expensiveFunc() {
-  computePrime(1000);
+void expensiveFunc(uint32_t cost) {
+  if (cost != 0) {
+    computePrime(cost);
+  }
 }
 
 struct opts {
   bool send;
   bool write;
   bool Read;
-  uint32_t KeysForFunc;
-  uint32_t OutputEntries;
+  bool ExecClient;    // execute func on client
+  bool ExecServer;  // execute func on server
+  uint32_t DiSize;
+  uint32_t CompCost;
   enum Measure Measure;
 };
+
+// compute the output size based on the input size
+// and the cost of the function
+unsigned int getOutputSize(const opts &opt) {
+  return opt.DiSize / opt.CompCost;
+}
+
 
 void printTestData(TestData *Data, uint32_t NumEntries) {
   for (unsigned i = 0; i < NumEntries; ++i) {
@@ -538,8 +549,12 @@ void printTestData(TestData *Data, uint32_t NumEntries) {
 opts parse_cl(int argc, char *argv[]) {
   opts opt = {};
 
+  // s = server sends
+  // w = server writes
+  // r = client reads
+  // f = where to execute reduction function (server or client)
   while (1) {
-    int c = getopt(argc, argv, "swrn:o:m:");
+    int c = getopt(argc, argv, "swri:m:c:f:");
 
     if (c == -1) {
       break;
@@ -547,26 +562,19 @@ opts parse_cl(int argc, char *argv[]) {
 
     switch(c) {
     case 's':
-      opt.send = true; // server uses send for Do
+      opt.send = true;
       break;
     case 'w':
-      opt.write = true; // server writes for Do
+      opt.write = true;
       break;
     case 'r':
-      opt.Read = true; // client reads Di
+      opt.Read = true;
       break;
-    case 'n':
+    case 'i':
     {
       std::string str(optarg);
       std::stringstream sstm(str);
-      sstm >> opt.KeysForFunc;
-      break;
-    }
-    case 'o':
-    {
-      std::string str(optarg);
-      std::stringstream sstm(str);
-      sstm >> opt.OutputEntries;
+      sstm >> opt.DiSize;
       break;
     }
     case 'm':
@@ -585,18 +593,39 @@ opts parse_cl(int argc, char *argv[]) {
 
       break;
     }
+    case 'f':
+    {
+      std::string str(optarg);
+
+      if (str == "server") {
+        opt.ExecServer = true;
+      } else if (str == "client") {
+        opt.ExecClient = true;
+      } else {
+        check(false, "invalid computation place");
+      }
+
+      break;
+    }
+    case 'c':
+    {
+      std::string str(optarg);
+      std::stringstream sstm(str);
+      sstm >> opt.CompCost;
+      break;
+    }
     default:
       std::cerr << "Invalid option" << "\n";
       check_z(1);
     }
   }
 
-  check((opt.KeysForFunc != 0), "must provide number of KeysForFunc");
-  check((opt.OutputEntries != 0), "matching keys cannot be 0");
+  check((opt.DiSize != 0), "must provide input size");
   check(opt.Measure != 0, "must select desired measure");
+  check(opt.CompCost != 0, "must specify computation cost");
+  check(opt.ExecClient || opt.ExecServer, "must specify where the computation happens");
 
-  D(std::cout << "number of KeysForFunc=" << opt.KeysForFunc << "\n");
-  D(std::cout << "number of output KeysForFunc=" << opt.OutputEntries << "\n");
+  D(std::cout << "input size=" << opt.DiSize << "\n");
 
   return opt;
 }

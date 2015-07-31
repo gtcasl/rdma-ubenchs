@@ -90,7 +90,8 @@ public:
   }
 };
 
-void clientServerSends(const opts &opt) {
+void srvServerSends(const opts &opt) {
+  std::cout << "Server - server sends\n";
   Client Client;
   Client.HandleAddrResolved();
   Client.HandleRouteResolved();
@@ -102,15 +103,17 @@ void clientServerSends(const opts &opt) {
 
   rdma_ack_cm_event(Client.event);
 
+  unsigned int outputSize = getOutputSize(opt);
+
   uint32_t *Key = new uint32_t();
   *Key = 15;
   MemRegion KeyMR(Key, sizeof(uint32_t), Client.protDomain);
   PostWrSend SendKey((uint64_t) Key, sizeof(uint32_t), KeyMR.getRegion()->lkey,
                      Client.clientId->qp);
 
-  uint32_t *Do = new uint32_t[opt.OutputEntries]();
-  MemRegion DoMR(Do, sizeof(uint32_t) * opt.OutputEntries, Client.protDomain);
-  PostWrRecv RecvDo((uint64_t) Do, sizeof(uint32_t) * opt.OutputEntries, DoMR.getRegion()->lkey,
+  uint32_t *Do = new uint32_t[outputSize]();
+  MemRegion DoMR(Do, sizeof(uint32_t) * outputSize, Client.protDomain);
+  PostWrRecv RecvDo((uint64_t) Do, sizeof(uint32_t) * outputSize, DoMR.getRegion()->lkey,
                     Client.clientId->qp);
 
   Perf perf(opt.Measure);
@@ -133,7 +136,7 @@ void clientServerSends(const opts &opt) {
     Client.WaitForCompletion(2);
 
     perf.stop();
-    std::cout << "Do[" << opt.OutputEntries - 1 << "]=" << Do[opt.OutputEntries - 1] << "\n";
+    std::cout << "Do[" << outputSize - 1 << "]=" << Do[outputSize - 1] << "\n";
   }
 
   delete[] Do;
@@ -141,7 +144,7 @@ void clientServerSends(const opts &opt) {
   rdma_disconnect(Client.clientId);
 }
 
-void clientServerWrites(const opts &opt) {
+void srvServerWrites(const opts &opt) {
   Client Client;
   Client.HandleAddrResolved();
   Client.HandleRouteResolved();
@@ -153,14 +156,16 @@ void clientServerWrites(const opts &opt) {
 
   rdma_ack_cm_event(Client.event);
 
+  unsigned int outputSize = getOutputSize(opt);
+
   uint32_t *Key = new uint32_t();
   *Key = 15;
   MemRegion KeyMR(Key, sizeof(uint32_t), Client.protDomain);
   PostWrSend SendKey((uint64_t) Key, sizeof(uint32_t), KeyMR.getRegion()->lkey,
                      Client.clientId->qp);
 
-  uint32_t *Do = new uint32_t[opt.OutputEntries]();
-  MemRegion DoMR(Do, sizeof(uint32_t) * opt.OutputEntries, Client.protDomain);
+  uint32_t *Do = new uint32_t[outputSize]();
+  MemRegion DoMR(Do, sizeof(uint32_t) * outputSize, Client.protDomain);
   SendSI SendSI(Do, DoMR.getRegion(), Client.protDomain);
   SendSI.post(Client.clientId->qp);
   ibv_recv_wr ZeroRecv = {};
@@ -186,10 +191,10 @@ void clientServerWrites(const opts &opt) {
     Client.WaitForCompletion(2);
 
     perf.stop();
-    std::cout << "Do[" << opt.OutputEntries - 1 << "]=" << Do[opt.OutputEntries - 1] << "\n";
+    std::cout << "Do[" << outputSize - 1 << "]=" << Do[outputSize - 1] << "\n";
 
-    if (Do[opt.OutputEntries - 1] != it * 100) {
-      std::cout << "it=" << it << "Do=" << Do[opt.OutputEntries - 1] << "\n";
+    if (Do[outputSize - 1] != it * 100) {
+      std::cout << "it=" << it << "Do=" << Do[outputSize - 1] << "\n";
       check(false, "data mismatch");
     }
   }
@@ -199,7 +204,7 @@ void clientServerWrites(const opts &opt) {
   rdma_disconnect(Client.clientId);
 }
 
-void clientLocalCompClient(const opts &opt) {
+void clntServerSends(const opts &opt) {
   Client Client;
   Client.HandleAddrResolved();
   Client.HandleRouteResolved();
@@ -217,9 +222,9 @@ void clientLocalCompClient(const opts &opt) {
   PostWrSend SendKey((uint64_t) Key, sizeof(uint32_t), KeyMR.getRegion()->lkey,
                      Client.clientId->qp);
 
-  uint32_t *Di = new uint32_t[opt.KeysForFunc]();
-  MemRegion DiMR(Di, sizeof(uint32_t) * opt.KeysForFunc, Client.protDomain);
-  PostWrRecv RecvDi((uint64_t) Di, sizeof(uint32_t) * opt.KeysForFunc, DiMR.getRegion()->lkey,
+  uint32_t *Di = new uint32_t[opt.DiSize]();
+  MemRegion DiMR(Di, sizeof(uint32_t) * opt.DiSize, Client.protDomain);
+  PostWrRecv RecvDi((uint64_t) Di, sizeof(uint32_t) * opt.DiSize, DiMR.getRegion()->lkey,
                     Client.clientId->qp);
 
   Perf perf(opt.Measure);
@@ -230,7 +235,7 @@ void clientLocalCompClient(const opts &opt) {
     SendKey.exec();
     RecvDi.exec();
     Client.WaitForCompletion(2);
-    expensiveFunc();
+    expensiveFunc(opt.CompCost);
     std::cout << "Warm up " << it << "\n";
   }
 
@@ -243,15 +248,15 @@ void clientLocalCompClient(const opts &opt) {
     RecvDi.exec();
 
     Client.WaitForCompletion(2);
-    expensiveFunc();
+    expensiveFunc(opt.CompCost);
     perf.stop();
 
-    if (Di[opt.KeysForFunc - 1] != it * 100) {
-      std::cout << "it=" << it << "Di=" << Di[opt.KeysForFunc - 1] << "\n";
+    if (Di[opt.DiSize - 1] != it * 100) {
+      std::cout << "it=" << it << "Di=" << Di[opt.DiSize - 1] << "\n";
       check(false, "data mismatch");
     }
 
-    std::cout << "Di[" << opt.KeysForFunc - 1 << "]=" << Di[opt.KeysForFunc - 1] << "\n";
+    std::cout << "Di[" << opt.DiSize - 1 << "]=" << Di[opt.DiSize - 1] << "\n";
   }
 
   delete[] Di;
@@ -259,7 +264,7 @@ void clientLocalCompClient(const opts &opt) {
   rdma_disconnect(Client.clientId);
 }
 
-void clientReads(const opts &opt) {
+void clntClientReads(const opts &opt) {
   Client Client;
   Client.HandleAddrResolved();
   Client.HandleRouteResolved();
@@ -279,8 +284,8 @@ void clientReads(const opts &opt) {
   PostWrSend SendKey((uint64_t) Key, sizeof(uint32_t), KeyMR.getRegion()->lkey,
                      Client.clientId->qp);
 
-  uint32_t *Di = new uint32_t[opt.KeysForFunc]();
-  size_t ReadSize = opt.KeysForFunc * sizeof(uint32_t);
+  uint32_t *Di = new uint32_t[opt.DiSize]();
+  size_t ReadSize = opt.DiSize * sizeof(uint32_t);
   MemRegion DiMR(Di, ReadSize, Client.protDomain);
   Sge ReadSGE((uint64_t) Di, ReadSize, DiMR.getRegion()->lkey);
   SendWR ReadWR(ReadSGE);
@@ -304,7 +309,7 @@ void clientReads(const opts &opt) {
     Client.WaitForCompletion(1);
     ReadWR.post(Client.clientId->qp);
     Client.WaitForCompletion(1);
-    expensiveFunc();
+    expensiveFunc(opt.CompCost);
   }
 
 
@@ -321,14 +326,14 @@ void clientReads(const opts &opt) {
     ReadWR.post(Client.clientId->qp);
     Client.WaitForCompletion(1);
 
-    expensiveFunc();
+    expensiveFunc(opt.CompCost);
 
     perf.stop();
 
-    std::cout << "Di[" << opt.KeysForFunc - 1 << "]=" << Di[opt.KeysForFunc - 1] << "\n";
+    std::cout << "Di[" << opt.DiSize - 1 << "]=" << Di[opt.DiSize - 1] << "\n";
 
-    if (Di[opt.KeysForFunc - 1] != it * 100) {
-      std::cout << "it=" << it << "Di=" << Di[opt.KeysForFunc - 1] << "\n";
+    if (Di[opt.DiSize - 1] != it * 100) {
+      std::cout << "it=" << it << "Di=" << Di[opt.DiSize - 1] << "\n";
       check(false, "data mismatch");
     }
   }
@@ -341,17 +346,14 @@ void clientReads(const opts &opt) {
 int main(int argc, char *argv[]) {
   opts opt = parse_cl(argc, argv);
 
-  if (opt.send) {
-    // send key and then receive Do.
-    clientServerSends(opt);
+  if (opt.send && opt.ExecServer) {
+    srvServerSends(opt);
   } else if (opt.write) {
-    clientServerWrites(opt);
+    srvServerWrites(opt);
   } else if (opt.Read) {
-    clientReads(opt);
+    clntClientReads(opt);
   } else {
-    // local computation on client.
-    // send key and receive Di. then execute expensiveFunc.
-    clientLocalCompClient(opt);
+    clntServerSends(opt);
   }
 
   return 0;
