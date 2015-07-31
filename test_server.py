@@ -4,57 +4,24 @@ import sys
 import time
 from common import *
 
-def server_sends(option, opt, value, parser):
-  # needed keys don't alter the result of the benchmark because we don't
-  # have to send those to the client. only the output keys have an impact
-  # on the benchmark
-  for idx, val in enumerate(ENTRIES):
-    cmd = "taskset -c 11 ./server3 -s -n 1024 -o {0} -m {1} -c {2}".format(val, value, COST[idx])
-    out = exe(cmd)
-    print "num output keys = {0}, cost = {1}".format(val, COST[idx])
-    print_stats(value, out)
-
+def server_sends(option, opt, measure, parser):
+  experiment("server3", "-s", parser.values.function, measure)
   sys.exit(0)
 
-def server_writes(option, opt, value, parser):
-  # needed keys don't alter the result of the benchmark because we don't
-  # have to send those to the client. only the output keys have an impact
-  # on the benchmark
-  for idx, val in enumerate(ENTRIES):
-    cmd = "taskset -c 11 ./server3 -w -n 1024 -o {0} -m {1} -c {2}".format(val, value, COST[idx])
-    out = exe(cmd)
-    print "num output keys = {0}, cost = {1}".format(val, COST[idx])
-    print_stats(value, out)
-
+def server_writes(option, opt, measure, parser):
+  experiment("server3", "-w", parser.values.function, measure)
   sys.exit(0)
 
-def client_computes(option, opt, value, parser):
-  for idx, val in enumerate(ENTRIES):
-    cmd = "taskset -c 11 ./server3 -n {0} -o 1024 -m {1} -c {2}".format(
-                                            val, value, COST[idx])
-    out = exe(cmd)
-    print "num needed keys = {0}, cost = {1}".format(val, COST[idx])
-    print_stats(value, out)
-
-  sys.exit(0)
-
-def client_reads(option, opt, value, parser):
-  for idx, val in enumerate(ENTRIES):
-    cmd = "taskset -c 11 ./server3 -r -n {0} -o 1024 -m {1} -c {2}".format(
-                                            val, value, COST[idx])
-    out = exe(cmd)
-    print "num needed keys = {0}, cost = {1}".format(val, COST[idx])
-    print_stats(value, out)
-
+def client_reads(option, opt, measure, parser):
+  experiment("server3", "-r", parser.values.function, measure)
   sys.exit(0)
 
 def main():
   parser = optparse.OptionParser()
+  parser.add_option("-f", "--function", dest="function")
   parser.add_option('--server-sends', action='callback', callback=server_sends,
                     dest='measure', type='str')
   parser.add_option('--server-writes', action='callback', callback=server_writes,
-                    dest='measure', type='str')
-  parser.add_option('--client-computes', action='callback', callback=client_computes,
                     dest='measure', type='str')
   parser.add_option('--client-reads', action='callback', callback=client_reads,
                     dest='measure', type='str')

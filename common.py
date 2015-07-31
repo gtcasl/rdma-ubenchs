@@ -1,11 +1,11 @@
 import subprocess
 import re
 import math
+import time
 
-#ENTRIES = [4, 16, 64, 256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216, 67108864]
-
-ENTRIES = [262144 * 18, 196608 * 18, 131072 * 18, 65536 * 18, 2]
-COST = [1, 256, 512, 768, 1024]
+ENTRIES = [4, 64, 1024, 16384, 262144, 4194304]
+#COSTS = [1, 256, 512, 768, 1024]
+COSTS = [1]
 
 def exe(cmdline):
   print "executing: " + cmdline
@@ -66,3 +66,16 @@ def print_stats(measure, out):
     raise LookupError("Measure not supported")
 
   print "\n"
+
+def experiment(binary, transfer_opt, func, measure):
+  for num_entries in ENTRIES:
+    for cost in COSTS:
+      if cost >= num_entries * 4:
+        break
+
+      time.sleep(1)
+      out = exe("taskset -c 11 ./{0} {1} -i {2} -m {3} -c {4} -f {5}".format(binary, transfer_opt,
+                                                              num_entries, measure, cost, func))
+      print "func = {0}, num entries = {1}, cost = {2}".format(func, num_entries, cost)
+      print_stats(measure, out)
+
