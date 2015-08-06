@@ -344,6 +344,64 @@ void clntClientReads(const opts &opt) {
   Srv.HandleDisconnect();
 }
 
+void srvClientReads(const opts &opt) {
+  unsigned int outputSize = getOutputSize(opt);
+
+  std::cout << "Server - client reads\n";
+  std::cout << "Will send Do buffer of size " << outputSize << "\n";
+  std::cout << "The cost of comp will be " << opt.CompCost << "\n";
+
+  Server Srv;
+  Srv.HandleConnectRequest();
+
+  uint32_t *Key = new uint32_t();
+  MemRegion KeyMR(Key, sizeof(uint32_t), Srv.protDomain);
+  PostWrRecv RecvKey((uint64_t) Key, sizeof(uint32_t), KeyMR.getRegion()->lkey,
+                     Srv.clientId->qp);
+
+  uint32_t *Do = new uint32_t[outputSize]();
+  Do[outputSize - 1] = 0x1234;
+  MemRegion DoMR(Do, sizeof(uint32_t) * outputSize, Srv.protDomain);
+  SendSI SendSI(Do, DoMR.getRegion(), Srv.protDomain);
+
+  SendWR ZeroWR;
+  ZeroWR.setOpcode(IBV_WR_SEND);
+
+  SendSI.post(Srv.clientId->qp);
+  Srv.HandleConnectionEstablished();
+  Do[outputSize - 1] = 0;
+  Srv.WaitForCompletion(1);
+
+  Perf perf(opt.Measure);
+
+  for (unsigned it = 0; it < NUM_WARMUP; ++it) {
+    RecvKey.exec();
+    Srv.WaitForCompletion(1);
+    expensiveFunc(opt.CompCost);
+    ZeroWR.post(Srv.clientId->qp);
+    Srv.WaitForCompletion(1);
+  }
+
+  for (unsigned it = 0; it < NUM_REP; ++it) {
+    perf.start();
+    RecvKey.exec(); // wait for the key to write our mem
+    Srv.WaitForCompletion(1);
+
+    expensiveFunc(opt.CompCost);
+    Do[outputSize - 1] = it * 100;
+
+    ZeroWR.post(Srv.clientId->qp); // notify the client to read the mem
+    Srv.WaitForCompletion(1);
+
+    perf.stop();
+    std::cout << "key=" << *Key << "\n";
+  }
+
+  delete[] Key;
+  delete[] Do;
+  Srv.HandleDisconnect();
+}
+
 int main(int argc, char *  argv[]) {
   opts opt = parse_cl(argc, argv);
 
@@ -351,6 +409,8 @@ int main(int argc, char *  argv[]) {
     srvServerSends(opt);
   } else if (opt.write && opt.ExecServer) {
     srvServerWrites(opt);
+  } else if (opt.Read && opt.ExecServer) {
+    srvClientReads(opt);
   } else if (opt.Read && opt.ExecClient) {
     clntClientReads(opt);
   } else if (opt.send && opt.ExecClient) {

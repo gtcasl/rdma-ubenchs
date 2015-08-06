@@ -349,6 +349,83 @@ void clntClientReads(const opts &opt) {
   rdma_disconnect(Client.clientId);
 }
 
+void srvClientReads(const opts &opt) {
+  unsigned int outputSize = getOutputSize(opt);
+  std::cout << "Server - client reads\n";
+
+  Client Client;
+  Client.HandleAddrResolved();
+  Client.HandleRouteResolved();
+  Client.Setup();
+
+  assert(rdma_connect(Client.clientId, &Client.connParams) == 0);
+  assert(rdma_get_cm_event(Client.eventChannel, &Client.event) == 0);
+  assert(Client.event->event == RDMA_CM_EVENT_ESTABLISHED);
+
+  rdma_ack_cm_event(Client.event);
+
+  RecvSI RecvSI(Client.protDomain);
+
+  uint32_t *Key = new uint32_t();
+  *Key = 15;
+  MemRegion KeyMR(Key, sizeof(uint32_t), Client.protDomain);
+  PostWrSend SendKey((uint64_t) Key, sizeof(uint32_t), KeyMR.getRegion()->lkey,
+                     Client.clientId->qp);
+
+  uint32_t *Do = new uint32_t[outputSize]();
+  size_t ReadSize = outputSize * sizeof(uint32_t);
+  MemRegion DoMR(Do, ReadSize, Client.protDomain);
+  Sge ReadSGE((uint64_t) Do, ReadSize, DoMR.getRegion()->lkey);
+  SendWR ReadWR(ReadSGE);
+  ReadWR.setOpcode(IBV_WR_RDMA_READ);
+
+  ibv_recv_wr ZeroRecv = {};
+
+  RecvSI.post(Client.clientId->qp);
+  Client.WaitForCompletion(1);
+  RecvSI.print();
+
+  ReadWR.setRdma(RecvSI.Info->Addr, RecvSI.Info->RemoteKey);
+
+  Perf perf(opt.Measure);
+  ReadWR.setSignaled();
+
+  for (unsigned it = 0; it < NUM_WARMUP; ++it) {
+    SendKey.exec();
+    Client.WaitForCompletion(1);
+    check_z(ibv_post_recv(Client.clientId->qp, &ZeroRecv, NULL)); // wait for signal to read mem
+    Client.WaitForCompletion(1);
+    ReadWR.post(Client.clientId->qp);
+    Client.WaitForCompletion(1);
+  }
+
+  for (unsigned it = 0; it < NUM_REP; ++it) {
+    perf.start();
+
+    *Key = it;
+    SendKey.exec();
+    Client.WaitForCompletion(1); // wait for key to be sent
+
+    check_z(ibv_post_recv(Client.clientId->qp, &ZeroRecv, NULL)); // wait for signal to read mem
+    Client.WaitForCompletion(1);
+
+    ReadWR.post(Client.clientId->qp);
+    Client.WaitForCompletion(1);
+
+    perf.stop();
+
+    std::cout << "Do[" << outputSize - 1 << "]=" << Do[outputSize - 1] << "\n";
+
+    if (Do[outputSize - 1] != it * 100) {
+      std::cout << "it=" << it << "Do=" << Do[outputSize - 1] << "\n";
+      check(false, "data mismatch");
+    }
+  }
+
+  delete[] Key;
+  delete[] Do;
+  rdma_disconnect(Client.clientId);
+}
 int main(int argc, char *argv[]) {
   opts opt = parse_cl(argc, argv);
 
@@ -356,6 +433,8 @@ int main(int argc, char *argv[]) {
     srvServerSends(opt);
   } else if (opt.write && opt.ExecServer) {
     srvServerWrites(opt);
+  } else if (opt.Read && opt.ExecServer) {
+    srvClientReads(opt);
   } else if (opt.Read && opt.ExecClient) {
     clntClientReads(opt);
   } else if (opt.send && opt.ExecClient) {
