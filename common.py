@@ -3,9 +3,9 @@ import re
 import math
 import time
 
-#ENTRIES = [1024, 16384, 262144, 4194304]
-ENTRIES = [4, 16, 64, 256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216, 67108864]
-COSTS = [1]
+ENTRIES = [1024, 16384, 262144, 4194304]
+#ENTRIES = [4, 16, 64, 256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216, 67108864]
+COSTS = [1, 256, 512, 768, 1024]
 
 def exe(cmdline):
   print "executing: " + cmdline
@@ -73,7 +73,11 @@ def experiment(binary, transfer_opt, func, measure):
       if cost >= num_entries * 4:
         break
 
-      time.sleep(1)
+      if binary == "client3":
+        time.sleep(5)
+      else:
+        time.sleep(1)
+
       out = exe("taskset -c 11 ./{0} {1} -i {2} -m {3} -c {4} -f {5}".format(binary, transfer_opt,
                                                               num_entries, measure, cost, func))
       print "func = {0}, num entries = {1}, cost = {2}".format(func, num_entries, cost)
