@@ -575,6 +575,7 @@ opts parse_cl(int argc, char *argv[]) {
       std::string str(optarg);
       std::stringstream sstm(str);
       sstm >> opt.DiSize;
+      opt.DiSize = opt.DiSize * sizeof(struct TestData);
       break;
     }
     case 'm':
