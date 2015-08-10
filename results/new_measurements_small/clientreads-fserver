@@ -1,0 +1,99 @@
+executing: taskset -c 11 ./client3 -r -i 4 -m time -c 1 -f server
+func = server, num entries = 4, cost = 1
+avg time=18.178, sample std dev=0.429535214506
+
+
+executing: taskset -c 11 ./client3 -r -i 4 -m time -c 2 -f server
+func = server, num entries = 4, cost = 2
+avg time=18.115, sample std dev=0.346258422128
+
+
+executing: taskset -c 11 ./client3 -r -i 4 -m time -c 4 -f server
+func = server, num entries = 4, cost = 4
+avg time=18.12, sample std dev=0.340170127606
+
+
+executing: taskset -c 11 ./client3 -r -i 4 -m time -c 8 -f server
+func = server, num entries = 4, cost = 8
+avg time=18.384, sample std dev=0.73285815891
+
+
+executing: taskset -c 11 ./client3 -r -i 4 -m time -c 16 -f server
+func = server, num entries = 4, cost = 16
+avg time=19.759, sample std dev=0.489037992551
+
+
+executing: taskset -c 11 ./client3 -r -i 16 -m time -c 1 -f server
+func = server, num entries = 16, cost = 1
+avg time=19.297, sample std dev=7.24246120074
+
+
+executing: taskset -c 11 ./client3 -r -i 16 -m time -c 2 -f server
+func = server, num entries = 16, cost = 2
+avg time=18.307, sample std dev=0.486814120572
+
+
+executing: taskset -c 11 ./client3 -r -i 16 -m time -c 4 -f server
+func = server, num entries = 16, cost = 4
+avg time=18.237, sample std dev=0.437060661719
+
+
+executing: taskset -c 11 ./client3 -r -i 16 -m time -c 8 -f server
+func = server, num entries = 16, cost = 8
+avg time=18.447, sample std dev=0.530539793486
+
+
+executing: taskset -c 11 ./client3 -r -i 16 -m time -c 16 -f server
+func = server, num entries = 16, cost = 16
+avg time=19.868, sample std dev=0.403408897694
+
+
+executing: taskset -c 11 ./client3 -r -i 64 -m time -c 1 -f server
+func = server, num entries = 64, cost = 1
+avg time=19.276, sample std dev=0.469088524741
+
+
+executing: taskset -c 11 ./client3 -r -i 64 -m time -c 2 -f server
+func = server, num entries = 64, cost = 2
+avg time=18.895, sample std dev=0.343646756267
+
+
+executing: taskset -c 11 ./client3 -r -i 64 -m time -c 4 -f server
+func = server, num entries = 64, cost = 4
+avg time=18.434, sample std dev=0.527183006101
+
+
+executing: taskset -c 11 ./client3 -r -i 64 -m time -c 8 -f server
+func = server, num entries = 64, cost = 8
+avg time=18.695, sample std dev=0.492155683922
+
+
+executing: taskset -c 11 ./client3 -r -i 64 -m time -c 16 -f server
+func = server, num entries = 64, cost = 16
+avg time=23.809, sample std dev=81.160147169
+
+
+executing: taskset -c 11 ./client3 -r -i 256 -m time -c 1 -f server
+func = server, num entries = 256, cost = 1
+avg time=24.022, sample std dev=0.198885785202
+
+
+executing: taskset -c 11 ./client3 -r -i 256 -m time -c 2 -f server
+func = server, num entries = 256, cost = 2
+avg time=21.023, sample std dev=0.196238399681
+
+
+executing: taskset -c 11 ./client3 -r -i 256 -m time -c 4 -f server
+func = server, num entries = 256, cost = 4
+avg time=19.44, sample std dev=0.52979305458
+
+executing: taskset -c 11 ./client3 -r -i 256 -m time -c 8 -f server
+func = server, num entries = 256, cost = 8
+avg time=19.033, sample std dev=0.209654370226
+
+
+executing: taskset -c 11 ./client3 -r -i 256 -m time -c 16 -f server
+func = server, num entries = 256, cost = 16
+avg time=20.15, sample std dev=0.381635487927
+
+
