@@ -70,7 +70,7 @@ def print_stats(measure, out):
 def experiment(binary, transfer_opt, func, measure):
   for num_entries in ENTRIES:
     for cost in COSTS:
-      if cost >= num_entries * 4:
+      if cost > num_entries * 4:
         break
 
       if binary == "client3":
